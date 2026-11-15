@@ -1,0 +1,52 @@
+name: Release offline file
+
+# Every merge to main publishes the single-file app as a downloadable release named after the
+# package.json version (v0.1.0 -> letter-builder-v0.1.0.html), creating the tag too.
+# A version that already has a release is skipped.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Work out the release tag
+        id: tag
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$GITHUB_REF_NAME" != "$version" ]; then
+            echo "Tag $GITHUB_REF_NAME doesn't match package.json ($version)"; exit 1
+          fi
+          echo "name=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "$version" >/dev/null 2>&1; then
+            echo "Release $version already exists, so nothing to do."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.tag.outputs.exists != 'true'
+        run: npm ci
+      - if: steps.tag.outputs.exists != 'true'
+        run: npm test
+      - if: steps.tag.outputs.exists != 'true'
+        run: npm run build
+      - if: steps.tag.outputs.exists != 'true'
+        run: |
+          tag="${{ steps.tag.outputs.name }}"
+          cp dist/index.html "letter-builder-$tag.html"
+          gh release create "$tag" "letter-builder-$tag.html" --target "$GITHUB_SHA" --title "$tag" --generate-notes

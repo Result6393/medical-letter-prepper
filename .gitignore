@@ -1,0 +1,12 @@
+node_modules/
+dist/
+# Never commit real letters or patient documents.
+*.docx
+*.doc
+*.pdf
+*.csv
+*.xlsx
+# Exported settings contain names (consultants, recipients, your provider number): never commit them.
+*settings*.json
+*.local.html
+*with-settings*
