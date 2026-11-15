@@ -174,7 +174,19 @@ export const TEMPLATE_KEY = 'letter-builder.template';
 /** Letterheads by hospital id. Kept in this browser only. */
 export const TEMPLATES_KEY = 'letter-builder.templates';
 
+/** When the stored letterheads last changed (ms since 1970). */
+export const TEMPLATES_UPDATED_KEY = 'letter-builder.templates.updated';
+
 export type TemplateMap = Record<string, StoredTemplate>;
+
+/**
+ * Letterheads from the browser and from an offline copy, one per hospital. A copy saved after the
+ * browser's letterheads last changed wins for the hospitals it has; otherwise the browser's win.
+ * Hospitals only one side has are always kept.
+ */
+export function mergeTemplates(stored: TemplateMap, embedded: TemplateMap, storedUpdated: number, embeddedSavedAt: number): TemplateMap {
+  return embeddedSavedAt > storedUpdated ? { ...stored, ...embedded } : { ...embedded, ...stored };
+}
 
 export function parseTemplateMap(text: string | null | undefined): TemplateMap {
   const out: TemplateMap = {};

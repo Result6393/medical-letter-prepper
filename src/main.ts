@@ -11,13 +11,13 @@ import {
   toPlainText,
   type LetterState,
 } from './letter';
-import { DOCX_MIME, fillTemplate, fromBase64, parseStoredTemplate, parseTemplateMap, readLetterhead, stripTemplate, TEMPLATE_KEY, TEMPLATES_KEY, toBase64, type StoredTemplate, type TemplateMap } from './docx';
-import { copyPlain, copyRich, capturePristine, embeddedSettings, embeddedTemplate, printPage, withEmbeddedSettings } from './output';
+import { DOCX_MIME, fillTemplate, fromBase64, mergeTemplates, parseStoredTemplate, parseTemplateMap, readLetterhead, stripTemplate, TEMPLATE_KEY, TEMPLATES_KEY, TEMPLATES_UPDATED_KEY, toBase64, type StoredTemplate, type TemplateMap } from './docx';
+import { copyPlain, copyRich, capturePristine, embeddedSavedAt, embeddedSettings, embeddedTemplate, printPage, withEmbeddedSettings } from './output';
 import { readText } from './ocr';
 import { foundAnything, parsePatientHeader } from './patientheader';
 import { letterheadPage, plainPage } from './printhtml';
 import { CLINICS, DIAGNOSES, DRUGS, EYES, FREQUENCIES, INTERVALS, LETTER_TYPES, SECTIONS, TITLES, VA_OPTIONS, type ClinicId, type LetterType } from './phrases';
-import { effectivePhrases, exportSettings, loadSettings, phrasesFor, saveSettings, STORAGE_KEY, SYNC_APP, type Settings } from './settings';
+import { effectivePhrases, exportSettings, loadSettings, phrasesFor, pickSettingsText, saveSettings, STORAGE_KEY, SYNC_APP, type Settings } from './settings';
 import { openSettings } from './settings-view';
 import { pullBeforeStart, pushSoon } from './sync.js';
 
@@ -108,6 +108,7 @@ function fixSite(): void {
 function saveTemplates(): boolean {
   try {
     store?.setItem(TEMPLATES_KEY, JSON.stringify(templates));
+    store?.setItem(TEMPLATES_UPDATED_KEY, String(Date.now()));
     return Boolean(store);
   } catch {
     return false;
@@ -635,7 +636,6 @@ async function start(): Promise<void> {
   } catch {
     // Offline: carry on with what is on this device.
   }
-  settings = loadSettings(store, embeddedSettings());
   const read = (key: string): string | null => {
     try {
       return store?.getItem(key) ?? null;
@@ -643,8 +643,30 @@ async function start(): Promise<void> {
       return null;
     }
   };
-  templates = parseTemplateMap(read(TEMPLATES_KEY));
-  if (!Object.keys(templates).length) templates = parseTemplateMap(embeddedTemplate());
+  // An offline copy saved after this browser's settings last changed wins; otherwise the browser's
+  // own settings do (including edits made inside the file).
+  const builtIn = embeddedSettings();
+  const builtInAt = embeddedSavedAt();
+  let storedAt = 0;
+  try {
+    storedAt = Number((JSON.parse(read(`${STORAGE_KEY}.sync`) || 'null') as { updated?: number } | null)?.updated) || 0;
+  } catch {
+    storedAt = 0;
+  }
+  const pick = pickSettingsText(read(STORAGE_KEY), storedAt, builtIn, builtInAt);
+  settings = loadSettings(null, pick.text);
+  if (pick.fromEmbedded) {
+    saveSettings(store, settings);
+    try {
+      store?.setItem(`${STORAGE_KEY}.sync`, JSON.stringify({ updated: builtInAt, dirty: false }));
+    } catch {
+      // Not remembered: used for this visit.
+    }
+  }
+  const fromBrowser = parseTemplateMap(read(TEMPLATES_KEY));
+  const fromFile = parseTemplateMap(embeddedTemplate());
+  templates = mergeTemplates(fromBrowser, fromFile, Number(read(TEMPLATES_UPDATED_KEY)) || 0, builtInAt);
+  if (JSON.stringify(templates) !== JSON.stringify(fromBrowser)) saveTemplates();
   // A letterhead saved before hospitals existed moves to the first hospital without one.
   const legacy = parseStoredTemplate(read(TEMPLATE_KEY));
   const spare = settings.sites.find((s) => !templates[s.id]);

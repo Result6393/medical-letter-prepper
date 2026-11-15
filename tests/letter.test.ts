@@ -14,7 +14,7 @@ import {
   type LetterState,
 } from '../src/letter';
 import { DEFAULT_PHRASES, SECTIONS } from '../src/phrases';
-import { defaultSettings, effectivePhrases, exportSettings, importSettings, phrasesFor } from '../src/settings';
+import { defaultSettings, effectivePhrases, exportSettings, importSettings, phrasesFor, pickSettingsText } from '../src/settings';
 
 function state(over: Partial<LetterState> = {}): LetterState {
   return {
@@ -275,5 +275,31 @@ describe('settings', () => {
     const back = importSettings(JSON.stringify({ customPhrases: [{ type: 'nope', text: 'x' }, { type: 'review', section: 'open', text: ' ' }], topMarginMm: 9999 }));
     expect(back.customPhrases).toEqual([]);
     expect(back.topMarginMm).toBe(defaultSettings().topMarginMm);
+  });
+});
+
+describe('which settings an offline copy starts with', () => {
+  const stored = '{"stored":true}';
+  const built = '{"built":true}';
+
+  it('uses the browser\'s own settings when there is no built-in copy', () => {
+    expect(pickSettingsText(stored, 100, null, 0)).toEqual({ text: stored, fromEmbedded: false });
+    expect(pickSettingsText(null, 0, null, 0)).toEqual({ text: null, fromEmbedded: false });
+  });
+
+  it('uses the built-in copy when the browser has none', () => {
+    expect(pickSettingsText(null, 0, built, 50)).toEqual({ text: built, fromEmbedded: true });
+  });
+
+  it('prefers a built-in copy saved after the browser\'s settings last changed', () => {
+    expect(pickSettingsText(stored, 100, built, 200)).toEqual({ text: built, fromEmbedded: true });
+  });
+
+  it('keeps edits made in the browser after the copy was saved', () => {
+    expect(pickSettingsText(stored, 300, built, 200)).toEqual({ text: stored, fromEmbedded: false });
+  });
+
+  it('keeps the browser\'s settings for a copy saved before the time was recorded', () => {
+    expect(pickSettingsText(stored, 100, built, 0)).toEqual({ text: stored, fromEmbedded: false });
   });
 });

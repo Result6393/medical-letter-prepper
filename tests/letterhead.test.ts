@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
-import { parseTemplateMap, readLetterhead, stripTemplate } from '../src/docx';
+import { mergeTemplates, parseTemplateMap, readLetterhead, stripTemplate } from '../src/docx';
 import { letterheadPage, plainPage } from '../src/printhtml';
 
 const rels = (items: [string, string][]) =>
@@ -97,5 +97,29 @@ describe('stored letterheads', () => {
     expect(parseTemplateMap('nope')).toEqual({});
     expect(parseTemplateMap(null)).toEqual({});
     expect(parseTemplateMap('[]')).toEqual({});
+  });
+});
+
+describe('merging letterheads from the browser and an offline copy', () => {
+  const t = (name: string) => ({ name, data: 'QQ==' });
+  const stored = { a: t('stored-a'), b: t('stored-b') };
+  const embedded = { a: t('copy-a'), c: t('copy-c') };
+
+  it('a newer copy wins for the hospitals it has, and adds the ones the browser lacks', () => {
+    const merged = mergeTemplates(stored, embedded, 100, 200);
+    expect(merged.a.name).toBe('copy-a');
+    expect(merged.b.name).toBe('stored-b');
+    expect(merged.c.name).toBe('copy-c');
+  });
+
+  it('the browser wins when its letterheads changed after the copy was saved', () => {
+    const merged = mergeTemplates(stored, embedded, 300, 200);
+    expect(merged.a.name).toBe('stored-a');
+    expect(merged.c.name).toBe('copy-c');
+  });
+
+  it('copes with nothing on either side', () => {
+    expect(mergeTemplates({}, {}, 0, 0)).toEqual({});
+    expect(mergeTemplates({}, embedded, 0, 0)).toEqual(embedded);
   });
 });

@@ -90,6 +90,12 @@ export function embeddedSettings(): string | null {
   return text || null;
 }
 
+/** When (ms since 1970) the settings were built into this file; 0 for a file saved before this was recorded. */
+export function embeddedSavedAt(): number {
+  const n = Number(document.getElementById(EMBEDDED_ID)?.getAttribute('data-saved-at'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 /** The page as it was before the app drew anything, so a copy can be saved with settings inside. */
 export function capturePristine(): string {
   return '<!doctype html>\n' + document.documentElement.outerHTML;
@@ -99,7 +105,7 @@ export function capturePristine(): string {
  * The pristine page with the given settings JSON inside, usable offline on any machine.
  * Done on a parsed copy (not by searching the text) because the app's own code mentions these tags.
  */
-export function withEmbeddedSettings(pristine: string, settingsJson: string, templateJson: string | null = null): string {
+export function withEmbeddedSettings(pristine: string, settingsJson: string, templateJson: string | null = null, savedAt = Date.now()): string {
   const doc = new DOMParser().parseFromString(pristine, 'text/html');
   const embed = (id: string, json: string | null) => {
     doc.getElementById(id)?.remove();
@@ -107,6 +113,8 @@ export function withEmbeddedSettings(pristine: string, settingsJson: string, tem
     const tag = doc.createElement('script');
     tag.id = id;
     tag.type = 'application/json';
+    // So a browser that already holds older settings can tell this copy is newer.
+    tag.setAttribute('data-saved-at', String(savedAt));
     tag.textContent = json.replace(/</g, '\\u003c');
     doc.head.prepend(tag);
   };

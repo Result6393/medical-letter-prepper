@@ -87,6 +87,23 @@ export function loadSettings(store: KeyValueStore | null, fallbackText?: string 
   }
 }
 
+/**
+ * Which settings text to start with. Settings built into an offline copy win when they were saved
+ * after the ones this browser holds (a newer copy of the file, opened where an older one was used
+ * before); otherwise the browser's own win, so edits made in the file are kept.
+ */
+export function pickSettingsText(
+  stored: string | null,
+  storedUpdated: number,
+  embedded: string | null,
+  embeddedSavedAt: number,
+): { text: string | null; fromEmbedded: boolean } {
+  if (!embedded) return { text: stored || null, fromEmbedded: false };
+  if (!stored) return { text: embedded, fromEmbedded: true };
+  if (embeddedSavedAt > storedUpdated) return { text: embedded, fromEmbedded: true };
+  return { text: stored, fromEmbedded: false };
+}
+
 export function saveSettings(store: KeyValueStore | null, settings: Settings): void {
   try {
     store?.setItem(STORAGE_KEY, exportSettings(settings));
