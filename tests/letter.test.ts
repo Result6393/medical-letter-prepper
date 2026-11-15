@@ -138,20 +138,21 @@ describe('letter', () => {
 
   it('builds the sign-off from settings', () => {
     const settings = defaultSettings();
-    settings.signer = { name: 'Dr A Example', provider: '000000X', rolePrefix: 'Registrar to' };
+    settings.signer = { name: 'Dr A Example', rolePrefix: 'Registrar to' };
+    settings.sites = [{ id: 'a', name: 'Example Hospital', provider: '000000X' }];
     settings.consultants = [{ id: 'c1', name: 'Dr B Sample', provider: '', titles: ['Consultant Ophthalmologist, Example Hospital'], clinics: [] }];
-    const l = buildLetter(state({ consultantId: 'c1' }), settings, []);
+    const l = buildLetter(state({ consultantId: 'c1', siteId: 'a' }), settings, []);
     expect(l.signoff).toEqual(['Dr A Example, 000000X', 'Registrar to Dr B Sample', 'Consultant Ophthalmologist, Example Hospital']);
     settings.consultants[0].provider = '111111Y';
-    expect(buildLetter(state({ consultantId: 'c1' }), settings, []).signoff[1]).toBe('Registrar to Dr B Sample, 111111Y');
+    expect(buildLetter(state({ consultantId: 'c1', siteId: 'a' }), settings, []).signoff[1]).toBe('Registrar to Dr B Sample, 111111Y');
     expect(buildLetter(state(), defaultSettings(), []).signoff).toEqual(['[Your name]']);
   });
 
   it('names the chosen hospital in consultant lines, and copes with none', () => {
     const settings = defaultSettings();
     settings.sites = [
-      { id: 'a', name: 'Example Eye Hospital' },
-      { id: 'b', name: 'Sample General Hospital' },
+      { id: 'a', name: 'Example Eye Hospital', provider: '1111111A' },
+      { id: 'b', name: 'Sample General Hospital', provider: '2222222B' },
     ];
     settings.consultants = [{ id: 'c1', name: 'Dr B Sample', provider: '', titles: ['Professor of Examples', 'Consultant Ophthalmologist, {hospital}'], clinics: [] }];
     const at = (siteId: string) => buildLetter(state({ consultantId: 'c1', siteId }), settings, []).signoff.slice(2);
@@ -159,6 +160,21 @@ describe('letter', () => {
     expect(at('b')).toEqual(['Professor of Examples', 'Consultant Ophthalmologist, Sample General Hospital']);
     expect(at('')).toEqual(['Professor of Examples', 'Consultant Ophthalmologist']);
     expect(fillHospital('{hospital}', '')).toBe('');
+  });
+
+  it('uses the provider number of the chosen hospital', () => {
+    const settings = defaultSettings();
+    settings.signer.name = 'Dr A Example';
+    settings.sites = [
+      { id: 'a', name: 'Example Eye Hospital', provider: '1111111A' },
+      { id: 'b', name: 'Sample General Hospital', provider: '2222222B' },
+      { id: 'c', name: 'No Number Hospital', provider: '' },
+    ];
+    const first = (siteId: string) => buildLetter(state({ siteId }), settings, []).signoff[0];
+    expect(first('a')).toBe('Dr A Example, 1111111A');
+    expect(first('b')).toBe('Dr A Example, 2222222B');
+    expect(first('c')).toBe('Dr A Example');
+    expect(first('')).toBe('Dr A Example');
   });
 
   it('formats the date', () => {
@@ -228,13 +244,20 @@ describe('settings', () => {
     const s = defaultSettings();
     s.signer.name = 'Dr A Example';
     s.recipients = ['Dr Jones'];
-    s.sites = [{ id: 'a', name: 'Example Eye Hospital' }];
+    s.sites = [{ id: 'a', name: 'Example Eye Hospital', provider: '1111111A' }];
     s.hiddenPhrases = ['rv-s1'];
     s.phraseEdits = { 'rv-s2': 'Edited.' };
     const back = importSettings(exportSettings(s));
     expect(back).toEqual(s);
     expect(importSettings('{}')).toEqual(defaultSettings());
     expect(() => importSettings('[]')).toThrow();
+  });
+
+  it('keeps a provider number saved by an earlier version for hospitals without their own', () => {
+    const old = JSON.stringify({ signer: { name: 'Dr A Example', provider: '3333333C' }, sites: [{ id: 'a', name: 'One' }, { id: 'b', name: 'Two', provider: '4444444D' }] });
+    const back = importSettings(old);
+    expect(back.sites.map((x) => x.provider)).toEqual(['3333333C', '4444444D']);
+    expect('provider' in back.signer).toBe(false);
   });
 
   it('applies hides, edits and custom phrases', () => {

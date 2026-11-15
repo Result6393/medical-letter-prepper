@@ -1,5 +1,5 @@
 import { INTERVALS, SECTIONS, type ClinicId, type LetterType, type Phrase } from './phrases';
-import { phrasesFor, type Consultant, type Settings } from './settings';
+import { phrasesFor, type Consultant, type Settings, type Site } from './settings';
 
 export type Sex = 'm' | 'f' | 'x';
 export type ReferAs = 'title' | 'first' | 'this';
@@ -200,13 +200,14 @@ export function fillHospital(line: string, hospital: string): string {
     .trim();
 }
 
-export function buildSignoff(settings: Settings, consultant: Consultant | undefined, hospital = ''): string[] {
-  const { name, provider, rolePrefix } = settings.signer;
-  const out = [[name.trim() || '[Your name]', provider.trim()].filter(Boolean).join(', ')];
+/** Sign-off lines. Your provider number is the one set for the chosen hospital. */
+export function buildSignoff(settings: Settings, consultant: Consultant | undefined, site?: Site): string[] {
+  const { name, rolePrefix } = settings.signer;
+  const out = [[name.trim() || '[Your name]', site?.provider.trim() ?? ''].filter(Boolean).join(', ')];
   if (consultant) {
     const who = [consultant.name.trim(), consultant.provider.trim()].filter(Boolean).join(', ');
     out.push(`${rolePrefix.trim() || 'Registrar to'} ${who}`.trim());
-    out.push(...consultant.titles.map((t) => fillHospital(t, hospital)).filter(Boolean));
+    out.push(...consultant.titles.map((t) => fillHospital(t, site?.name ?? '')).filter(Boolean));
   }
   return out;
 }
@@ -229,7 +230,7 @@ export function patientLines(p: PatientState): string[] {
 /** Assembles the whole letter from the form state. */
 export function buildLetter(s: LetterState, settings: Settings, phrases: Phrase[]): Letter {
   const consultant = settings.consultants.find((c) => c.id === s.consultantId);
-  const hospital = settings.sites.find((x) => x.id === s.siteId)?.name ?? '';
+  const site = settings.sites.find((x) => x.id === s.siteId);
   return {
     date: formatDate(s.date, settings.dateFormat),
     patient: patientLines(s.patient),
@@ -237,7 +238,7 @@ export function buildLetter(s: LetterState, settings: Settings, phrases: Phrase[
     salutation: s.salutation.trim() || 'Dear Doctor,',
     paragraphs: s.bodyOverride !== null ? splitParagraphs(s.bodyOverride) : buildParagraphs(s, phrases),
     closing: 'Yours sincerely,',
-    signoff: buildSignoff(settings, consultant, hospital),
+    signoff: buildSignoff(settings, consultant, site),
   };
 }
 

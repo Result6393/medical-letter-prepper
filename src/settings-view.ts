@@ -130,7 +130,6 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
     note('These are saved in this browser (and synced if you sign in on the Sync tab). They are never part of the app’s code.'),
     h('h3', null, 'You'),
     text('Your name for the sign-off', s.signer.name, 'e.g. Dr A Example', (n, v) => (n.signer.name = v.trim())),
-    text('Provider number', s.signer.provider, 'Printed after your name; leave blank to omit', (n, v) => (n.signer.provider = v.trim())),
     text('Role line start', s.signer.rolePrefix, 'e.g. "Registrar to" or "Registrar for"', (n, v) => (n.signer.rolePrefix = v.trim())),
     h('h3', null, 'Consultants'),
     ...consultantRows,
@@ -301,6 +300,8 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
     const loaded = ctx.templateName(site.id);
     const name = h('input', { type: 'text', value: site.name, placeholder: 'Example Eye Hospital' });
     name.addEventListener('change', () => edit((n) => (n.sites[i].name = name.value.trim())));
+    const provider = h('input', { type: 'text', value: site.provider, placeholder: '0000000A' });
+    provider.addEventListener('change', () => edit((n) => (n.sites[i].provider = provider.value.trim())));
 
     const fileInput = h('input', { type: 'file', accept: '.docx', hidden: true });
     fileInput.addEventListener('change', async () => {
@@ -319,6 +320,7 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
       'div',
       { class: 'card-row' },
       field('Hospital name (as it should read in the sign-off)', name),
+      field('Your provider number at this hospital', provider, 'Printed after your name when this hospital is chosen; leave blank to omit'),
       h('p', { class: loaded ? 'note' : 'note warn' }, loaded ? `Letterhead loaded: ${loaded}` : 'No letterhead loaded yet.'),
       h('div', { class: 'btn-row' },
         h('button', { type: 'button', class: 'btn', onClick: () => fileInput.click() }, loaded ? 'Replace letterhead file' : 'Load letterhead file (.docx)'),
@@ -349,7 +351,7 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
         type: 'button',
         class: 'btn',
         onClick: () => {
-          edit((n) => n.sites.push({ id: `s${Date.now().toString(36)}`, name: '' }));
+          edit((n) => n.sites.push({ id: `s${Date.now().toString(36)}`, name: '', provider: '' }));
           show('letterhead');
         },
       }, 'Add hospital'),

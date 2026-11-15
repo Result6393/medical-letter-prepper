@@ -21,12 +21,12 @@ Anything still needing attention (`PATIENT`, or a `[bracketed]` prompt in a phra
 
 ## Settings
 
-Open **Settings** to add your name and provider number, your hospitals, consultants (with the lines that go under their name), recipients you write to often, extra drug suggestions, and to hide, reword or add phrases. These are saved in the browser as changes from the built-in lists.
+Open **Settings** to add your name, your hospitals (each with your provider number there),  consultants (with the lines that go under their name), recipients you write to often, extra drug suggestions, and to hide, reword or add phrases. These are saved in the browser as changes from the built-in lists.
 
-- **Hospitals and letterheads:** add each hospital and load a Word file that has its letterhead (any letter on it will do). The text of the file you load is removed as it is read, and the page is set to A4. Letterheads stay in your browser, are all carried in the offline copy, are not synced, and are never part of this repository. Consultants are shared across hospitals: write `{hospital}` in a consultant's lines (e.g. `Consultant Ophthalmologist, {hospital}`) and it follows the hospital chosen for each letter.
+- **Hospitals and letterheads:** add each hospital with your provider number there (it differs by site and is printed after your name for that hospital's letters), and load a Word file that has its letterhead (any letter on it will do). The text of the file you load is removed as it is read, and the page is set to A4. Letterheads stay in your browser, are all carried in the offline copy, are not synced, and are never part of this repository. Consultants are shared across hospitals: write `{hospital}` in a consultant's lines (e.g. `Consultant Ophthalmologist, {hospital}`) and it follows the hospital chosen for each letter.
 - **Sync across devices:** sign in with your work settings sync password. This reuses the sync used by the other work apps (`src/sync.js` is an identical copy of the shared client in [Result6393.github.io](https://github.com/Result6393/Result6393.github.io)). Settings are encrypted in the browser before upload. It only works on the GitHub Pages version.
 - **Export / import:** save the settings to a file and load them on another machine.
-- **Offline copy with my settings:** downloads this page as one HTML file with your settings and every hospital's letterhead built in, for a computer where the web version is blocked. It contains your names, so keep it private.
+- **Offline copy with my settings:** downloads this page (named with the version, e.g. `letter-builder-v0.6.0-with-settings.html`) as one HTML file with your settings and every hospital's letterhead built in, for a computer where the web version is blocked. It contains your names, so keep it private.
 
 ## Privacy
 

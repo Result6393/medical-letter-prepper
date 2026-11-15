@@ -534,7 +534,7 @@ function doNewLetter(): void {
 }
 
 function doDownloadOffline(): void {
-  download('letter-builder-with-settings.html', withEmbeddedSettings(pristine, exportSettings(settings), Object.keys(templates).length ? JSON.stringify(templates) : null), 'text/html');
+  download(`letter-builder-v${__APP_VERSION__}-with-settings.html`, withEmbeddedSettings(pristine, exportSettings(settings), Object.keys(templates).length ? JSON.stringify(templates) : null), 'text/html');
 }
 
 function doDownloadWord(): void {

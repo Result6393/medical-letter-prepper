@@ -17,13 +17,15 @@ export interface Site {
   id: string;
   /** Used wherever a consultant's lines say {hospital}, e.g. "Example Eye Hospital". */
   name: string;
+  /** Your provider number at this hospital, printed after your name; blank to omit. */
+  provider: string;
 }
 
 export interface Settings {
   version: 1;
   /** Hospitals to switch between. Consultants are shared across all of them. */
   sites: Site[];
-  signer: { name: string; provider: string; rolePrefix: string };
+  signer: { name: string; rolePrefix: string };
   consultants: Consultant[];
   /** Salutation names offered under "To", one per entry, e.g. "Dr Jones". */
   recipients: string[];
@@ -54,7 +56,7 @@ export function defaultSettings(): Settings {
   return {
     version: 1,
     sites: [],
-    signer: { name: '', provider: '', rolePrefix: 'Registrar to' },
+    signer: { name: '', rolePrefix: 'Registrar to' },
     consultants: [],
     recipients: [],
     customPhrases: [],
@@ -117,12 +119,12 @@ export function importSettings(text: string): Settings {
     sites: Array.isArray(data.sites)
       ? data.sites
           .filter(isObject)
-          .map((s, i): Site => ({ id: str(s.id, `site${i}`) || `site${i}`, name: str(s.name, '').trim() }))
+          // A single provider number saved by an earlier version is kept for hospitals without their own.
+          .map((s, i): Site => ({ id: str(s.id, `site${i}`) || `site${i}`, name: str(s.name, '').trim(), provider: str(s.provider, '').trim() || str(signer.provider, '').trim() }))
           .filter((s, i, all) => all.findIndex((x) => x.id === s.id) === i)
       : d.sites,
     signer: {
       name: str(signer.name, d.signer.name),
-      provider: str(signer.provider, d.signer.provider),
       rolePrefix: str(signer.rolePrefix, d.signer.rolePrefix),
     },
     consultants: Array.isArray(data.consultants)
