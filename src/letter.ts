@@ -203,7 +203,9 @@ export function fillHospital(line: string, hospital: string): string {
 /** Sign-off lines. Your provider number is the one set for the chosen hospital. */
 export function buildSignoff(settings: Settings, consultant: Consultant | undefined, site?: Site): string[] {
   const { name, rolePrefix } = settings.signer;
-  const out = [[name.trim() || '[Your name]', site?.provider.trim() ?? ''].filter(Boolean).join(', ')];
+  // The provider box can hold several lines: the first follows your name, the rest each get a line of their own.
+  const [firstProvider = '', ...moreProvider] = (site?.provider ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const out = [[name.trim() || '[Your name]', firstProvider].filter(Boolean).join(', '), ...moreProvider];
   if (consultant) {
     const who = [consultant.name.trim(), consultant.provider.trim()].filter(Boolean).join(', ');
     out.push(`${rolePrefix.trim() || 'Registrar to'} ${who}`.trim());

@@ -300,8 +300,9 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
     const loaded = ctx.templateName(site.id);
     const name = h('input', { type: 'text', value: site.name, placeholder: 'Example Eye Hospital' });
     name.addEventListener('change', () => edit((n) => (n.sites[i].name = name.value.trim())));
-    const provider = h('input', { type: 'text', value: site.provider, placeholder: '0000000A' });
-    provider.addEventListener('change', () => edit((n) => (n.sites[i].provider = provider.value.trim())));
+    const provider = h('textarea', { rows: 2, placeholder: '0000000A' });
+    provider.value = site.provider;
+    provider.addEventListener('change', () => edit((n) => (n.sites[i].provider = parseList(provider.value).join('\n'))));
 
     const fileInput = h('input', { type: 'file', accept: '.docx', hidden: true });
     fileInput.addEventListener('change', async () => {
@@ -320,7 +321,7 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
       'div',
       { class: 'card-row' },
       field('Hospital name (as it should read in the sign-off)', name),
-      field('Your provider number at this hospital', provider, 'Printed after your name when this hospital is chosen; leave blank to omit'),
+      field('Your provider number / sign-off lines at this hospital', provider, 'One per line. The first is printed after your name; any further lines go on their own lines below it. Leave blank to omit'),
       h('p', { class: loaded ? 'note' : 'note warn' }, loaded ? `Letterhead loaded: ${loaded}` : 'No letterhead loaded yet.'),
       h('div', { class: 'btn-row' },
         h('button', { type: 'button', class: 'btn', onClick: () => fileInput.click() }, loaded ? 'Replace letterhead file' : 'Load letterhead file (.docx)'),

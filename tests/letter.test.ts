@@ -177,6 +177,13 @@ describe('letter', () => {
     expect(first('')).toBe('Dr A Example');
   });
 
+  it('puts extra provider lines on their own lines under the name', () => {
+    const settings = defaultSettings();
+    settings.signer.name = 'Dr A Example';
+    settings.sites = [{ id: 'a', name: 'Example Eye Hospital', provider: '1111111A\nSecond line\n\nThird line' }];
+    expect(buildLetter(state({ siteId: 'a' }), settings, []).signoff).toEqual(['Dr A Example, 1111111A', 'Second line', 'Third line']);
+  });
+
   it('formats the date', () => {
     const settings = defaultSettings();
     expect(buildLetter(state(), settings, []).date).toBe('2026-01-05');
