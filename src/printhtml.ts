@@ -32,15 +32,15 @@ const linesHeightIn = (lines: LetterheadLine[]) => lines.reduce((sum, l) => sum 
  */
 export function letterheadPage(view: LetterheadView, letterHtml: string): PrintPage {
   const { page } = view;
-  const group = (side: Align) =>
-    view.images
+  const group = (side: Align, images = view.images) =>
+    images
       .filter((i) => i.align === side)
       .map((i) => `<img src="${i.src}" alt="" style="width:${n(i.widthIn)}in;height:${n(i.heightIn)}in;display:block">`)
       .join('');
 
   const imagesHeight = Math.max(0, ...view.images.map((i) => i.heightIn));
   const headerHeight = imagesHeight + linesHeightIn(view.headerLines);
-  const footerHeight = linesHeightIn(view.footerLines);
+  const footerHeight = Math.max(0, ...view.footerImages.map((i) => i.heightIn)) + linesHeightIn(view.footerLines);
   // The letter starts below the header, or at the top margin if that is lower (as Word does).
   const topSpace = Math.max(page.top, page.header + headerHeight + 0.15);
   const bottomSpace = Math.max(page.bottom, page.footer + footerHeight + 0.1);
@@ -50,7 +50,9 @@ export function letterheadPage(view: LetterheadView, letterHtml: string): PrintP
     view.images.length ? `<div class="lh-images"><div>${group('left')}</div><div>${group('center')}</div><div>${group('right')}</div></div>` : '',
     view.headerLines.map(lineHtml).join(''),
     '</div>',
-    `<div class="lh-footer" style="bottom:${n(page.footer)}in;left:${n(page.left)}in;right:${n(page.right)}in">${view.footerLines.map(lineHtml).join('')}</div>`,
+    `<div class="lh-footer" style="bottom:${n(page.footer)}in;left:${n(page.left)}in;right:${n(page.right)}in">${
+      view.footerImages.length ? `<div class="lh-images"><div>${group('left', view.footerImages)}</div><div>${group('center', view.footerImages)}</div><div>${group('right', view.footerImages)}</div></div>` : ''
+    }${view.footerLines.map(lineHtml).join('')}</div>`,
     '<table class="lh-table">',
     `<thead><tr><td style="height:${n(topSpace)}in"></td></tr></thead>`,
     `<tfoot><tr><td style="height:${n(bottomSpace)}in"></td></tr></tfoot>`,

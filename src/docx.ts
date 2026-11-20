@@ -228,6 +228,8 @@ export interface LetterheadView {
   images: LetterheadImage[];
   headerLines: LetterheadLine[];
   footerLines: LetterheadLine[];
+  /** Pictures in the footer (logos, accreditation marks). */
+  footerImages: LetterheadImage[];
   page: { top: number; bottom: number; left: number; right: number; header: number; footer: number };
 }
 
@@ -267,11 +269,14 @@ function relationships(files: Record<string, Uint8Array>, part: string): Record<
 const toAlign = (value: string | undefined): Align => (value === 'right' || value === 'end' ? 'right' : value === 'center' ? 'center' : 'left');
 
 /** Text paragraphs of a header or footer, ignoring pictures and text boxes. */
-function textLines(xml: string): LetterheadLine[] {
-  const plain = xml
-    .replace(/<mc:AlternateContent>[\s\S]*?<\/mc:AlternateContent>/g, '')
-    .replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, '')
-    .replace(/<w:pict>[\s\S]*?<\/w:pict>/g, '');
+function textLines(xml: string, includeBoxes = false): LetterheadLine[] {
+  // Footers often keep their text in a text box; the box is stored twice (Choice and Fallback), so keep one.
+  const plain = includeBoxes
+    ? xml.replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '')
+    : xml
+        .replace(/<mc:AlternateContent>[\s\S]*?<\/mc:AlternateContent>/g, '')
+        .replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, '')
+        .replace(/<w:pict>[\s\S]*?<\/w:pict>/g, '');
   const lines = (plain.match(/<w:p(?: [^>]*)?>[\s\S]*?<\/w:p>/g) ?? []).map((p): LetterheadLine => {
     const text = [...p.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((m) => unescapeXml(m[1])).join('');
     const size = /<w:sz w:val="(\d+)"/.exec(p)?.[1];
@@ -285,6 +290,29 @@ function textLines(xml: string): LetterheadLine[] {
   while (lines.length && !lines[0].text) lines.shift();
   while (lines.length && !lines[lines.length - 1].text) lines.pop();
   return lines;
+}
+
+/** Pictures in a header or footer part, with size and side. */
+function drawingsOf(files: Record<string, Uint8Array>, xml: string, rels: Record<string, string>): LetterheadImage[] {
+  const out: LetterheadImage[] = [];
+  for (const drawing of xml.replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '').match(/<w:drawing>[\s\S]*?<\/w:drawing>/g) ?? []) {
+    const id = /r:embed="([^"]*)"/.exec(drawing)?.[1];
+    const path = id ? rels[id] : undefined;
+    const type = path ? IMAGE_TYPES[path.split('.').pop()?.toLowerCase() ?? ''] : undefined;
+    const extent = /<wp:extent\b[^>]*>/.exec(drawing)?.[0] ?? '';
+    const cx = attr(extent, 'cx');
+    const cy = attr(extent, 'cy');
+    if (!path || !type || !files[path] || !cx || !cy) continue;
+    const floating = /<wp:anchor\b/.test(drawing);
+    const side = /<wp:positionH\b[^>]*>\s*<wp:align>(\w+)<\/wp:align>/.exec(drawing)?.[1];
+    out.push({
+      src: `data:${type};base64,${toBase64(files[path])}`,
+      widthIn: cx / EMU_PER_INCH,
+      heightIn: cy / EMU_PER_INCH,
+      align: floating ? toAlign(side) : 'left',
+    });
+  }
+  return out;
 }
 
 /**
@@ -304,7 +332,11 @@ export function readLetterhead(template: Uint8Array): LetterheadView {
 
   const partFor = (kind: 'header' | 'footer'): string | null => {
     const refs = doc.match(new RegExp(`<w:${kind}Reference\\b[^>]*/>`, 'g')) ?? [];
-    const ref = refs.filter((t) => /w:type="default"/.test(t)).pop();
+    // The default one; a reference with no type is the default too. If a letterhead only has a
+    // first-page one, use that rather than printing nothing.
+    const ref =
+      refs.filter((t) => /w:type="default"/.test(t) || !/w:type=/.test(t)).pop() ??
+      refs.filter((t) => /w:type="first"/.test(t)).pop();
     const id = ref && /r:id="([^"]*)"/.exec(ref)?.[1];
     const path = id ? docRels[id] : undefined;
     return path && files[path] ? path : null;
@@ -314,6 +346,7 @@ export function readLetterhead(template: Uint8Array): LetterheadView {
     images: [],
     headerLines: [],
     footerLines: [],
+    footerImages: [],
     page: { top: inches('w:top', 1), bottom: inches('w:bottom', 1), left: inches('w:left', 1), right: inches('w:right', 1), header: inches('w:header', 0.5), footer: inches('w:footer', 0.5) },
   };
 
@@ -321,28 +354,16 @@ export function readLetterhead(template: Uint8Array): LetterheadView {
   if (headerPath) {
     const xml = strFromU8(files[headerPath]);
     const rels = relationships(files, headerPath);
-    for (const drawing of xml.match(/<w:drawing>[\s\S]*?<\/w:drawing>/g) ?? []) {
-      const id = /r:embed="([^"]*)"/.exec(drawing)?.[1];
-      const path = id ? rels[id] : undefined;
-      const type = path ? IMAGE_TYPES[path.split('.').pop()?.toLowerCase() ?? ''] : undefined;
-      const extent = /<wp:extent\b[^>]*>/.exec(drawing)?.[0] ?? '';
-      const cx = attr(extent, 'cx');
-      const cy = attr(extent, 'cy');
-      if (!path || !type || !files[path] || !cx || !cy) continue;
-      const floating = /<wp:anchor\b/.test(drawing);
-      const side = /<wp:positionH\b[^>]*>\s*<wp:align>(\w+)<\/wp:align>/.exec(drawing)?.[1];
-      view.images.push({
-        src: `data:${type};base64,${toBase64(files[path])}`,
-        widthIn: cx / EMU_PER_INCH,
-        heightIn: cy / EMU_PER_INCH,
-        align: floating ? toAlign(side) : 'left',
-      });
-    }
+    view.images = drawingsOf(files, xml, rels);
     view.headerLines = textLines(xml);
   }
 
   const footerPath = partFor('footer');
-  if (footerPath) view.footerLines = textLines(strFromU8(files[footerPath]));
+  if (footerPath) {
+    const xml = strFromU8(files[footerPath]);
+    view.footerImages = drawingsOf(files, xml, relationships(files, footerPath));
+    view.footerLines = textLines(xml, true);
+  }
   return view;
 }
 

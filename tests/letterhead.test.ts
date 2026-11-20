@@ -67,6 +67,38 @@ describe('reading a letterhead', () => {
   });
 });
 
+describe('footers in other shapes', () => {
+  const docWith = (refs: string) =>
+    `<w:document><w:body><w:p/><w:sectPr>${refs}<w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1080" w:bottom="1440" w:left="1800" w:header="720" w:footer="360"/></w:sectPr></w:body></w:document>`;
+  const build = (refs: string, footer: string) =>
+    zipSync({
+      'word/document.xml': strToU8(docWith(refs)),
+      'word/_rels/document.xml.rels': rels([['rId1', 'footer1.xml']]),
+      'word/footer1.xml': strToU8(footer),
+      'word/_rels/footer1.xml.rels': rels([['rId5', 'media/f.png']]),
+      'word/media/f.png': new Uint8Array([1, 2, 3]),
+    });
+  const box = '<w:r><mc:AlternateContent><mc:Choice><w:drawing><wps:txbx><w:txbxContent><w:p><w:r><w:t>Example Clinic, 1 Sample St</w:t></w:r></w:p></w:txbxContent></wps:txbx></w:drawing></mc:Choice><mc:Fallback><w:pict><w:txbxContent><w:p><w:r><w:t>Example Clinic, 1 Sample St</w:t></w:r></w:p></w:txbxContent></w:pict></mc:Fallback></mc:AlternateContent></w:r>';
+
+  it('reads footer text kept in a text box once', () => {
+    const v = readLetterhead(build('<w:footerReference w:type="default" r:id="rId1"/>', `<w:ftr><w:p>${box}</w:p></w:ftr>`));
+    expect(v.footerLines.map((l) => l.text)).toEqual(['Example Clinic, 1 Sample St']);
+  });
+
+  it('reads footer pictures', () => {
+    const pic = '<w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><a:blip r:embed="rId5"/></wp:inline></w:drawing>';
+    const v = readLetterhead(build('<w:footerReference w:type="default" r:id="rId1"/>', `<w:ftr><w:p><w:r>${pic}</w:r></w:p></w:ftr>`));
+    expect(v.footerImages).toHaveLength(1);
+    expect(v.footerImages[0].heightIn).toBe(0.5);
+  });
+
+  it('accepts a footer reference with no type, or only a first-page footer', () => {
+    const f = '<w:ftr><w:p><w:r><w:t>Footer text</w:t></w:r></w:p></w:ftr>';
+    expect(readLetterhead(build('<w:footerReference r:id="rId1"/>', f)).footerLines).toHaveLength(1);
+    expect(readLetterhead(build('<w:footerReference w:type="first" r:id="rId1"/>', f)).footerLines).toHaveLength(1);
+  });
+});
+
 describe('print layouts', () => {
   const view = readLetterhead(stripTemplate(fakeLetterhead()));
 
