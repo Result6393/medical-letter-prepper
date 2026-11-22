@@ -59,7 +59,7 @@ export async function copyPlain(text: string): Promise<boolean> {
 }
 
 /** Prints the given page alone (see printhtml.ts for the layouts). "Save as PDF" in the dialog makes a PDF. */
-export function printPage(html: string, css: string): void {
+export async function printPage(html: string, css: string): Promise<void> {
   let root = document.getElementById('print-root');
   if (!root) {
     root = h('div', { id: 'print-root' });
@@ -72,6 +72,19 @@ export function printPage(html: string, css: string): void {
   }
   style.textContent = css;
   root.innerHTML = html;
+  // Letterhead images load asynchronously; printing before they are decoded gives blank logos.
+  const imgs = Array.from(root.querySelectorAll('img'));
+  await Promise.all(
+    imgs.map((img) =>
+      img.decode
+        ? img.decode().catch(() => undefined)
+        : img.complete
+          ? Promise.resolve()
+          : new Promise<void>((res) => {
+              img.onload = img.onerror = () => res();
+            }),
+    ),
+  );
   window.print();
 }
 

@@ -517,7 +517,7 @@ function doPrint(): void {
       say('Could not read the letterhead, so this prints without it.', 6000);
     }
   }
-  printPage(page.html, page.css);
+  void printPage(page.html, page.css);
 }
 
 function doEditBody(): void {
