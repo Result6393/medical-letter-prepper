@@ -63,6 +63,10 @@ describe('referral email text', () => {
     const r = { ...emptyReferral(), images: [image({ patientInfo: true, label: '' })] };
     expect(contactText(r)).toBe('Contact details: see the patient details screenshot below');
     expect(contactText({ ...r, phone: '0400 000 000' })).toBe('Phone: 0400 000 000');
+    expect(contactText({ ...r, phone: '0400 000 000', altPhone: '02 9000 0000 (daughter)', address: '1 Example St' })).toBe(
+      'Phone: 0400 000 000\nAlternative phone: 02 9000 0000 (daughter)\nAddress: 1 Example St',
+    );
+    expect(contactText({ ...r, altPhone: '02 9000 0000' })).toBe('Alternative phone: 02 9000 0000');
   });
 
   it('mentions an attached optometrist or GP referral', () => {
@@ -149,16 +153,16 @@ describe('contact details from a screenshot', () => {
       'Mobile Phone: 0400111222',
       'Medicare: 1234 56789 0',
     ].join('\n');
-    expect(parseContactDetails(text)).toEqual({ phone: '0400 111 222 (mobile), 02 9000 0000 (home)', address: '12 Example Street, Sampleton NSW 2000' });
+    expect(parseContactDetails(text)).toEqual({ phone: '0400 111 222 (mobile)', altPhone: '02 9000 0000 (home)', address: '12 Example Street, Sampleton NSW 2000' });
   });
 
   it('finds an unlabelled number and an address line', () => {
     const text = 'Patient Information\nContact: +61 400 333 444\n5/7 Sample Rd, Exampleville NSW 2150\nGP: Example Medical Centre, 1 Main St, Town NSW 2000';
-    expect(parseContactDetails(text)).toEqual({ phone: '0400 333 444', address: '5/7 Sample Rd, Exampleville NSW 2150' });
+    expect(parseContactDetails(text)).toEqual({ phone: '0400 333 444', altPhone: '', address: '5/7 Sample Rd, Exampleville NSW 2150' });
   });
 
   it('returns blanks when nothing looks like contact details', () => {
-    expect(parseContactDetails('MRN:1234567 DOB:01-02-1950\nAllergies: none')).toEqual({ phone: '', address: '' });
+    expect(parseContactDetails('MRN:1234567 DOB:01-02-1950\nAllergies: none')).toEqual({ phone: '', altPhone: '', address: '' });
   });
 
   it('tidies phone numbers', () => {

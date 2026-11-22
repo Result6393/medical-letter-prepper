@@ -7,7 +7,7 @@
 //   {patient}     the patient's first name and surname
 //   {dob} {mrn}   as typed
 //   {contact}     "Phone: …" and "Address: …" lines (or a pointer to the screenshot below)
-//   {phone} {address}
+//   {phone} {altphone} {address}
 //   {indication}  condition and eye, e.g. "CRVO in the right eye"
 //   {treatment}   e.g. "intravitreal anti-VEGF injections"
 //   {urgency}     e.g. "within a week"
@@ -56,6 +56,8 @@ export interface ReferralImage {
 export interface ReferralState {
   destId: string;
   phone: string;
+  /** Another number for the patient (a relative, home landline…). */
+  altPhone: string;
   address: string;
   condition: string;
   eye: ReferralEye;
@@ -144,6 +146,7 @@ export function emptyReferral(dest?: ReferralDest): ReferralState {
   return {
     destId: dest?.id ?? '',
     phone: '',
+    altPhone: '',
     address: '',
     condition: '',
     eye: '',
@@ -172,8 +175,8 @@ export function attachmentsText(otherReferral: string): string {
 }
 
 /** Contact lines for the top of the email. */
-export function contactText(r: Pick<ReferralState, 'phone' | 'address' | 'images'>): string {
-  const lines = [r.phone.trim() && `Phone: ${r.phone.trim()}`, r.address.trim() && `Address: ${r.address.trim().replace(/\s*\n\s*/g, ', ')}`].filter(Boolean);
+export function contactText(r: Pick<ReferralState, 'phone' | 'altPhone' | 'address' | 'images'>): string {
+  const lines = [r.phone.trim() && `Phone: ${r.phone.trim()}`, r.altPhone.trim() && `Alternative phone: ${r.altPhone.trim()}`, r.address.trim() && `Address: ${r.address.trim().replace(/\s*\n\s*/g, ', ')}`].filter(Boolean);
   if (lines.length) return lines.join('\n');
   return r.images.some((i) => i.patientInfo) ? 'Contact details: see the patient details screenshot below' : '[contact details]';
 }
@@ -213,6 +216,7 @@ export function fillReferral(template: string, c: ReferralContext): string {
     mrn: p.mrn.trim() || '[MRN]',
     contact: contactText(c.referral),
     phone: c.referral.phone.trim() || '[phone]',
+    altphone: c.referral.altPhone.trim(),
     address: c.referral.address.trim().replace(/\s*\n\s*/g, ', ') || '[address]',
     indication: indicationText(c.referral.condition, c.referral.eye),
     treatment: c.referral.treatment.trim() || '[treatment]',
@@ -318,6 +322,8 @@ export function parseEmails(text: string): string[] {
 
 export interface ContactDetails {
   phone: string;
+  /** Any further numbers found, comma-separated. */
+  altPhone: string;
   address: string;
 }
 
@@ -371,10 +377,9 @@ export function parseContactDetails(text: string): ContactDetails {
     }
   }
   const ordered = [...found].sort((a, b) => Number(b.number.startsWith('04')) - Number(a.number.startsWith('04')));
-  const phone = ordered
-    .slice(0, 3)
-    .map((f) => (f.label ? `${f.number} (${f.label})` : f.number))
-    .join(', ');
+  const numbers = ordered.slice(0, 3).map((f) => (f.label ? `${f.number} (${f.label})` : f.number));
+  const phone = numbers[0] ?? '';
+  const altPhone = numbers.slice(1).join(', ');
 
   // Address: a labelled line (home / residential before postal), carried onto the next lines
   // until the state and postcode; otherwise any line ending in a state and postcode.
@@ -406,5 +411,5 @@ export function parseContactDetails(text: string): ContactDetails {
       address = tidyAddress(line.slice(0, end.index + end[0].length).replace(/^.*?:\s*/, ''));
     }
   }
-  return { phone, address };
+  return { phone, altPhone, address };
 }

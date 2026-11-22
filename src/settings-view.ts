@@ -465,7 +465,7 @@ function referralsTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => voi
     'div',
     null,
     note('Places you refer to by email. “Prepare email” copies the email (text and pictures) and opens a new email with the addresses and subject filled in: paste into the body, attach any PDFs, and send. Patient details never go in the link.'),
-    h('details', { class: 'tokens' }, h('summary', null, 'Placeholders you can use in the email text'), h('p', null, '{patient} · {dob} · {mrn} · {contact} (phone and address lines) · {phone} · {address} · {indication} (e.g. CRVO in the right eye) · {treatment} · {urgency} · {attachments} (clinic notes, and the other referral if ticked) · {recipient} · {hospital} · {name} (your first name) · {signoff} (your name, position, hospital and provider number) · {date}. Anything left in [square brackets] is highlighted to fill in.')),
+    h('details', { class: 'tokens' }, h('summary', null, 'Placeholders you can use in the email text'), h('p', null, '{patient} · {dob} · {mrn} · {contact} (phone, alternative phone and address lines) · {phone} · {altphone} · {address} · {indication} (e.g. CRVO in the right eye) · {treatment} · {urgency} · {attachments} (clinic notes, and the other referral if ticked) · {recipient} · {hospital} · {name} (your first name) · {signoff} (your name, position, hospital and provider number) · {date}. Anything left in [square brackets] is highlighted to fill in.')),
     ...rows,
     h('div', { class: 'btn-row' },
       h('button', {

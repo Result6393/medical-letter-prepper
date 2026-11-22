@@ -134,6 +134,7 @@ export function createReferralView(ctx: ReferralViewContext): ReferralView {
       if (header.dob) patient.dob = header.dob;
       if (header.mrn) patient.mrn = header.mrn;
       if (contact.phone) r().phone = contact.phone;
+      if (contact.altPhone) r().altPhone = contact.altPhone;
       if (contact.address) r().address = contact.address;
       ctx.rebuild();
       const got = [header.surname || header.first ? 'name' : '', header.mrn ? 'MRN' : '', header.dob ? 'DOB' : '', contact.phone ? 'phone' : '', contact.address ? 'address' : ''].filter(Boolean);
@@ -295,7 +296,12 @@ export function createReferralView(ctx: ReferralViewContext): ReferralView {
           field('DOB', bind(h('input', { type: 'text', autocomplete: 'off', placeholder: 'dd/mm/yyyy' }), () => p().dob, (v) => (p().dob = v))),
           field('MRN', bind(h('input', { type: 'text', autocomplete: 'off' }), () => p().mrn, (v) => (p().mrn = v))),
         ),
-        field('Phone', bind(h('input', { type: 'text', autocomplete: 'off', placeholder: '0400 000 000' }), () => state.phone, (v) => (state.phone = v))),
+        h(
+          'div',
+          { class: 'grid2' },
+          field('Phone', bind(h('input', { type: 'text', autocomplete: 'off', placeholder: '0400 000 000' }), () => state.phone, (v) => (state.phone = v))),
+          field('Alternative phone', bind(h('input', { type: 'text', autocomplete: 'off', placeholder: 'Optional, e.g. a relative' }), () => state.altPhone, (v) => (state.altPhone = v))),
+        ),
         field('Address', bind(h('textarea', { rows: 2, autocomplete: 'off', placeholder: '1 Example St, Suburb NSW 2000' }), () => state.address, (v) => (state.address = v))),
       ),
     );
