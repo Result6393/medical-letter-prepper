@@ -67,6 +67,55 @@ describe('reading a letterhead', () => {
   });
 });
 
+/** An invented letterhead whose footer is a text box plus a picture, and whose default footer is empty. */
+function boxFooterLetterhead(defaultFooter: string, firstFooter: string): Uint8Array {
+  return zipSync({
+    'word/document.xml': strToU8(
+      '<w:document><w:body><w:p/><w:sectPr><w:footerReference w:type="default" r:id="rId1"/><w:footerReference w:type="first" r:id="rId2"/><w:titlePg/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1080" w:bottom="1440" w:left="1080" w:header="720" w:footer="360"/></w:sectPr></w:body></w:document>',
+    ),
+    'word/_rels/document.xml.rels': rels([
+      ['rId1', 'footer1.xml'],
+      ['rId2', 'footer2.xml'],
+    ]),
+    'word/footer1.xml': strToU8(defaultFooter),
+    'word/footer2.xml': strToU8(firstFooter),
+    'word/_rels/footer1.xml.rels': rels([['rId5', 'media/strip.png']]),
+    'word/_rels/footer2.xml.rels': rels([['rId5', 'media/strip.png']]),
+    'word/media/strip.png': new Uint8Array([7, 8, 9]),
+  });
+}
+
+const textBox =
+  '<w:p><w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:drawing><wp:anchor><wps:txbx><w:txbxContent><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>1 Example Road</w:t></w:r></w:p></w:txbxContent></wps:txbx></wp:anchor></w:drawing></mc:Choice><mc:Fallback><w:pict><v:textbox><w:txbxContent><w:p><w:r><w:t>1 Example Road</w:t></w:r></w:p></w:txbxContent></v:textbox></w:pict></mc:Fallback></mc:AlternateContent></w:r></w:p>';
+const footerPic = '<w:p><w:r><w:drawing><wp:inline><wp:extent cx="1828800" cy="457200"/><a:blip r:embed="rId5"/></wp:inline></w:drawing></w:r></w:p>';
+
+describe('footers that are text boxes, pictures or on the first page', () => {
+  it('reads text-box text once, ignoring the legacy duplicate', () => {
+    const v = readLetterhead(boxFooterLetterhead(`<w:ftr>${textBox}</w:ftr>`, '<w:ftr/>'));
+    expect(v.footerLines.map((l) => l.text)).toEqual(['1 Example Road']);
+    expect(v.footerLines[0].align).toBe('center');
+  });
+
+  it('reads footer pictures', () => {
+    const v = readLetterhead(boxFooterLetterhead(`<w:ftr>${footerPic}</w:ftr>`, '<w:ftr/>'));
+    expect(v.footerImages).toEqual([{ src: 'data:image/png;base64,BwgJ', widthIn: 2, heightIn: 0.5, align: 'left' }]);
+  });
+
+  it('falls back to the first-page footer when the default one is empty', () => {
+    const v = readLetterhead(boxFooterLetterhead('<w:ftr><w:p/></w:ftr>', `<w:ftr>${footerPic}${textBox}</w:ftr>`));
+    expect(v.footerImages).toHaveLength(1);
+    expect(v.footerLines.map((l) => l.text)).toEqual(['1 Example Road']);
+  });
+
+  it('prints the footer picture and reserves room for it', () => {
+    const v = readLetterhead(boxFooterLetterhead(`<w:ftr>${footerPic}</w:ftr>`, '<w:ftr/>'));
+    const page = letterheadPage(v, '<p>LETTER</p>');
+    expect(page.html).toContain('<img src="data:image/png;base64,BwgJ"');
+    // 0.25in footer offset + 0.5in picture + gap = 0.85in, below the 1in bottom margin? No: margin wins at 1in.
+    expect(page.html).toContain('<tfoot><tr><td style="height:1in">');
+  });
+});
+
 describe('print layouts', () => {
   const view = readLetterhead(stripTemplate(fakeLetterhead()));
 

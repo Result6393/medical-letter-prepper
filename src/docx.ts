@@ -228,6 +228,8 @@ export interface LetterheadView {
   images: LetterheadImage[];
   headerLines: LetterheadLine[];
   footerLines: LetterheadLine[];
+  /** Pictures in the footer (for example a strip of logos or an address image). */
+  footerImages: LetterheadImage[];
   page: { top: number; bottom: number; left: number; right: number; header: number; footer: number };
 }
 
@@ -272,6 +274,21 @@ function textLines(xml: string): LetterheadLine[] {
     .replace(/<mc:AlternateContent>[\s\S]*?<\/mc:AlternateContent>/g, '')
     .replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, '')
     .replace(/<w:pict>[\s\S]*?<\/w:pict>/g, '');
+  return paragraphLines(plain);
+}
+
+/**
+ * Text inside text boxes (where many hospital footers keep their address). Word stores each box
+ * twice, as a modern shape and a legacy fallback; only the modern one is read.
+ */
+function textBoxLines(xml: string): LetterheadLine[] {
+  const modern = xml.replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '');
+  const lines: LetterheadLine[] = [];
+  for (const box of modern.match(/<w:txbxContent>[\s\S]*?<\/w:txbxContent>/g) ?? []) lines.push(...paragraphLines(box));
+  return lines;
+}
+
+function paragraphLines(plain: string): LetterheadLine[] {
   const lines = (plain.match(/<w:p(?: [^>]*)?>[\s\S]*?<\/w:p>/g) ?? []).map((p): LetterheadLine => {
     const text = [...p.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map((m) => unescapeXml(m[1])).join('');
     const size = /<w:sz w:val="(\d+)"/.exec(p)?.[1];
@@ -302,25 +319,18 @@ export function readLetterhead(template: Uint8Array): LetterheadView {
     return v === null ? fallback : v / 1440;
   };
 
-  const partFor = (kind: 'header' | 'footer'): string | null => {
+  const partFor = (kind: 'header' | 'footer', type = 'default'): string | null => {
     const refs = doc.match(new RegExp(`<w:${kind}Reference\\b[^>]*/>`, 'g')) ?? [];
-    const ref = refs.filter((t) => /w:type="default"/.test(t)).pop();
+    const ref = refs.filter((t) => t.includes(`w:type="${type}"`)).pop();
     const id = ref && /r:id="([^"]*)"/.exec(ref)?.[1];
     const path = id ? docRels[id] : undefined;
     return path && files[path] ? path : null;
   };
 
-  const view: LetterheadView = {
-    images: [],
-    headerLines: [],
-    footerLines: [],
-    page: { top: inches('w:top', 1), bottom: inches('w:bottom', 1), left: inches('w:left', 1), right: inches('w:right', 1), header: inches('w:header', 0.5), footer: inches('w:footer', 0.5) },
-  };
-
-  const headerPath = partFor('header');
-  if (headerPath) {
-    const xml = strFromU8(files[headerPath]);
-    const rels = relationships(files, headerPath);
+  /** Pictures in a header or footer part, with size and side. */
+  const picturesIn = (xml: string, partPath: string): LetterheadImage[] => {
+    const out: LetterheadImage[] = [];
+    const rels = relationships(files, partPath);
     for (const drawing of xml.match(/<w:drawing>[\s\S]*?<\/w:drawing>/g) ?? []) {
       const id = /r:embed="([^"]*)"/.exec(drawing)?.[1];
       const path = id ? rels[id] : undefined;
@@ -331,18 +341,44 @@ export function readLetterhead(template: Uint8Array): LetterheadView {
       if (!path || !type || !files[path] || !cx || !cy) continue;
       const floating = /<wp:anchor\b/.test(drawing);
       const side = /<wp:positionH\b[^>]*>\s*<wp:align>(\w+)<\/wp:align>/.exec(drawing)?.[1];
-      view.images.push({
+      out.push({
         src: `data:${type};base64,${toBase64(files[path])}`,
         widthIn: cx / EMU_PER_INCH,
         heightIn: cy / EMU_PER_INCH,
         align: floating ? toAlign(side) : 'left',
       });
     }
+    return out;
+  };
+
+  const view: LetterheadView = {
+    images: [],
+    headerLines: [],
+    footerLines: [],
+    footerImages: [],
+    page: { top: inches('w:top', 1), bottom: inches('w:bottom', 1), left: inches('w:left', 1), right: inches('w:right', 1), header: inches('w:header', 0.5), footer: inches('w:footer', 0.5) },
+  };
+
+  const headerPath = partFor('header');
+  if (headerPath) {
+    const xml = strFromU8(files[headerPath]);
+    view.images = picturesIn(xml, headerPath);
     view.headerLines = textLines(xml);
   }
 
-  const footerPath = partFor('footer');
-  if (footerPath) view.footerLines = textLines(strFromU8(files[footerPath]));
+  // Footer: the default one, or, if that shows nothing (some letterheads keep their footer in
+  // the first-page footer), the first-page or even-page one. Text in text boxes and pictures count.
+  for (const type of ['default', 'first', 'even']) {
+    const footerPath = partFor('footer', type);
+    if (!footerPath) continue;
+    const xml = strFromU8(files[footerPath]);
+    const lines = [...textLines(xml), ...textBoxLines(xml)];
+    const images = picturesIn(xml, footerPath);
+    if (!lines.length && !images.length) continue;
+    view.footerLines = lines;
+    view.footerImages = images;
+    break;
+  }
   return view;
 }
 
