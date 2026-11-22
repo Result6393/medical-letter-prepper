@@ -22,3 +22,5 @@ This app exists because patient data must never go to an AI service or an outsid
 
 ## Versioning and release
 Bump `package.json` version with every pushed change (patch for fixes, minor for features, major for breaking saved settings). Merging to `main` deploys GitHub Pages and publishes `letter-builder-vX.Y.Z.html` as a release (workflows in `.github/`).
+
+Push straight to `main` (standing permission, no need to ask). This deploys Pages and publishes the release.
