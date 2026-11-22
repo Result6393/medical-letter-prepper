@@ -16,6 +16,11 @@ This app exists because patient data must never go to an AI service or an outsid
 - Stock phrases are in `src/phrases.ts`. Tokens are documented at the top of that file and filled in by `src/letter.ts`. Add a token in both places and in the "known tokens" test.
 - Phrases must be neutral wording a clinician would reuse, not a copy of one patient's letter.
 
+## Email referrals
+- `src/referral.ts` holds the referral email text and its tokens (documented at the top of that file and in the Settings tab). Add a token in both places and in `tests/referral.test.ts`.
+- Destinations (recipient names, email addresses, fax numbers) live only in settings, never in code or tests. Tests use `@example.org` addresses.
+- Patient details never go in the compose link (it ends up in browser history): only addresses and subject. The body, with images, goes by clipboard. Pasted images are held in memory only.
+
 ## Settings and sync
 - Settings shape lives in `src/settings.ts`. Changing it in a way old saved settings can't read is a major version bump; adding optional fields is fine because `importSettings` fills defaults.
 - `src/sync.js` and `src/sync.d.ts` are identical copies of the canonical files in `Result6393/Result6393.github.io` (`settings/`). Copy changes across, never edit here. App name on the sync server is `letter-builder`; the server allows only `https://result6393.github.io` and 64 KB per app.

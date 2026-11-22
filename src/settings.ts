@@ -1,4 +1,5 @@
 import { CLINICS, DEFAULT_PHRASES, SECTIONS, type ClinicId, type LetterType, type Phrase } from './phrases';
+import { DEFAULT_COMPOSE_URL, DEFAULT_REFERRAL_SUBJECT, DEFAULT_TREATMENT, type ReferralDest } from './referral';
 
 export interface Consultant {
   id: string;
@@ -40,6 +41,12 @@ export interface Settings {
   dateFormat: 'iso' | 'dmy';
   /** Blank space at the top of printed pages, for pre-printed letterhead. */
   topMarginMm: number;
+  /** Where email referrals go (addresses, subject, email text). */
+  referrals: ReferralDest[];
+  /** How "Prepare email" opens a new email: Outlook on the web, or the computer's mail app. */
+  composeWith: 'web' | 'mailto';
+  /** Outlook on the web's compose address. */
+  composeUrl: string;
 }
 
 export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
@@ -65,6 +72,9 @@ export function defaultSettings(): Settings {
     extraDrugs: emptyDrugs(),
     dateFormat: 'iso',
     topMarginMm: 45,
+    referrals: [],
+    composeWith: 'web',
+    composeUrl: DEFAULT_COMPOSE_URL,
   };
 }
 
@@ -179,6 +189,27 @@ export function importSettings(text: string): Settings {
     extraDrugs,
     dateFormat: data.dateFormat === 'dmy' ? 'dmy' : 'iso',
     topMarginMm: typeof data.topMarginMm === 'number' && data.topMarginMm >= 0 && data.topMarginMm <= 120 ? data.topMarginMm : d.topMarginMm,
+    referrals: Array.isArray(data.referrals)
+      ? data.referrals
+          .filter(isObject)
+          .map(
+            (r, i): ReferralDest => ({
+              id: str(r.id, `r${i}`) || `r${i}`,
+              label: str(r.label, '').trim(),
+              to: stringList(r.to),
+              cc: stringList(r.cc),
+              recipient: str(r.recipient, '').trim(),
+              subject: str(r.subject, DEFAULT_REFERRAL_SUBJECT),
+              body: str(r.body, ''),
+              checklist: stringList(r.checklist),
+              notes: str(r.notes, ''),
+              treatment: str(r.treatment, DEFAULT_TREATMENT),
+            }),
+          )
+          .filter((r, i, all) => all.findIndex((x) => x.id === r.id) === i)
+      : d.referrals,
+    composeWith: data.composeWith === 'mailto' ? 'mailto' : 'web',
+    composeUrl: typeof data.composeUrl === 'string' && /^https:\/\//.test(data.composeUrl.trim()) ? data.composeUrl.trim() : d.composeUrl,
   };
 }
 

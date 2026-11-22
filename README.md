@@ -19,9 +19,21 @@ Everything runs in your browser. The app makes no network requests apart from se
 
 Anything still needing attention (`PATIENT`, or a `[bracketed]` prompt in a phrase) is highlighted in the preview and listed under the buttons. Printing warns if any are left.
 
+## Email referral
+
+Choose **Email referral** at the top for a referral email with images, for example to private rooms that bulk bill injections. Patient name, DOB and MRN are shared with the letter, so you only enter them once.
+
+1. Set up the destination once in **Settings → Email referrals**: who it is to, their email addresses, the subject (keep patient details out of it), the email text and a before-sending checklist.
+2. **Patient:** click the patient details box, then paste (Ctrl+V) a screenshot of the patient information tab. It fills name, DOB, MRN, phone and address (always check them), and the screenshot goes in the email too, so the rooms have full contact details even if something was not read.
+3. **Referral:** condition, eye, treatment, how soon, and whether an optometrist's or GP's referral is attached as well.
+4. **Images:** paste (Ctrl+V anywhere else on the page) or drop OCT and fundus images, and label each one (e.g. RE OCT). Large pictures are shrunk so the email stays a sensible size.
+5. **Prepare email:** copies the email (text, then each image under its label, then the patient details screenshot) and opens a new email in Outlook on the web with the addresses and subject filled in. Click in the body, paste, attach the EMR notes PDF (and any other referral), and send.
+
+Patient details never go in the link that opens the new email, so they are not left in the browser history. If pasting ever drops the pictures, use **Copy text only**, then **Copy picture** on each image. Settings can switch to a `mailto:` link for a desktop mail app instead.
+
 ## Settings
 
-Open **Settings** to add your name, your hospitals (each with your provider number there),  consultants (with the lines that go under their name), recipients you write to often, extra drug suggestions, and to hide, reword or add phrases. These are saved in the browser as changes from the built-in lists.
+Open **Settings** to add your name, your hospitals (each with your provider number there), consultants (with the lines that go under their name), recipients you write to often, email referral destinations, extra drug suggestions, and to hide, reword or add phrases. These are saved in the browser as changes from the built-in lists.
 
 - **Hospitals and letterheads:** add each hospital with your provider number there (it differs by site and is printed after your name for that hospital's letters), and load a Word file that has its letterhead (any letter on it will do). The text of the file you load is removed as it is read, and the page is set to A4. Letterheads stay in your browser, are all carried in the offline copy, are not synced, and are never part of this repository. Consultants are shared across hospitals: write `{hospital}` in a consultant's lines (e.g. `Consultant Ophthalmologist, {hospital}`) and it follows the hospital chosen for each letter.
 - **Sync across devices:** sign in with your work settings sync password. This reuses the sync used by the other work apps (`src/sync.js` is an identical copy of the shared client in [Result6393.github.io](https://github.com/Result6393/Result6393.github.io)). Settings are encrypted in the browser before upload. It only works on the GitHub Pages version.
@@ -54,6 +66,9 @@ npm run build    # single-file build in dist/index.html
 | `src/printhtml.ts` | Print / PDF page layouts, with or without the letterhead |
 | `src/ocr.ts` | Offline text reader for screenshots (Tesseract, built into the page) |
 | `src/patientheader.ts` | Finds name, MRN and DOB in the text of a patient banner |
+| `src/referral.ts` | Email referral text and tokens, the compose link, and reading phone and address from a screenshot |
+| `src/referral-view.ts` | The email referral screen |
+| `src/images.ts` | Shrinks pasted images and copies them one at a time |
 | `src/settings.ts` | Settings shape, defaults, import / export, merging with the built-in phrases |
 | `src/settings-view.ts` | The settings dialog |
 | `src/main.ts` | The screen |

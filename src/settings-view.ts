@@ -1,6 +1,7 @@
 import { h, field, option, download } from './dom';
 import { CLINICS, DEFAULT_PHRASES, LETTER_TYPES, SECTIONS, type ClinicId, type LetterType } from './phrases';
 import { defaultSettings, exportSettings, importSettings, parseList, SYNC_APP, STORAGE_KEY, type Consultant, type Settings } from './settings';
+import { DEFAULT_COMPOSE_URL, DEFAULT_REFERRAL_BODY, newDestination, parseEmails } from './referral';
 import { mountSyncControl } from './sync.js';
 
 export interface SettingsContext {
@@ -25,13 +26,15 @@ const TABS = [
   { id: 'drugs', label: 'Drug lists' },
   { id: 'print', label: 'Print & dates' },
   { id: 'letterhead', label: 'Hospitals' },
+  { id: 'referrals', label: 'Email referrals' },
   { id: 'sync', label: 'Sync & backup' },
 ] as const;
-type TabId = (typeof TABS)[number]['id'];
+export type TabId = (typeof TABS)[number]['id'];
 
 let lastTab: TabId = 'you';
 
-export function openSettings(ctx: SettingsContext): void {
+export function openSettings(ctx: SettingsContext, tab?: TabId): void {
+  if (tab) lastTab = tab;
   const dialog = h('dialog', { class: 'settings' });
   const tabBar = h('div', { class: 'tabs', role: 'tablist' });
   const panel = h('div', { class: 'tab-panel' });
@@ -49,6 +52,7 @@ export function openSettings(ctx: SettingsContext): void {
     drugs: () => drugsTab(ctx, edit),
     print: () => printTab(ctx, edit),
     letterhead: () => letterheadTab(ctx, edit, show),
+    referrals: () => referralsTab(ctx, edit, show),
     sync: () => syncTab(ctx, show),
   };
 
@@ -360,6 +364,92 @@ function letterheadTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => vo
   );
 }
 
+// ---------- Email referrals ----------
+
+function referralsTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HTMLElement {
+  const s = ctx.get();
+  const rows = s.referrals.map((d, i) => {
+    const text = (label: string, value: string, placeholder: string, hint: string | undefined, set: (n: Settings, v: string) => void) => {
+      const input = h('input', { type: 'text', value, placeholder });
+      input.addEventListener('change', () => edit((n) => set(n, input.value)));
+      return field(label, input, hint);
+    };
+    const emails = (label: string, list: string[], hint: string, set: (n: Settings, v: string[]) => void) => {
+      const box = h('textarea', { rows: 2, placeholder: label === 'To' ? 'rooms@example.org' : '' });
+      box.value = list.join('\n');
+      box.addEventListener('change', () => {
+        const found = parseEmails(box.value);
+        edit((n) => set(n, found));
+        show('referrals');
+      });
+      return field(label, box, hint);
+    };
+    const body = h('textarea', { rows: 16, class: 'mono' });
+    body.value = d.body.trim() ? d.body : DEFAULT_REFERRAL_BODY;
+    body.addEventListener('change', () => edit((n) => (n.referrals[i].body = body.value.trim() === DEFAULT_REFERRAL_BODY.trim() ? '' : body.value)));
+    const checklist = h('textarea', { rows: 3 });
+    checklist.value = d.checklist.join('\n');
+    checklist.addEventListener('change', () => edit((n) => (n.referrals[i].checklist = parseList(checklist.value))));
+    const notes = h('textarea', { rows: 2, placeholder: 'e.g. Fax 00 0000 0000 if email is down' });
+    notes.value = d.notes;
+    notes.addEventListener('change', () => edit((n) => (n.referrals[i].notes = notes.value.trim())));
+    return h(
+      'div',
+      { class: 'card-row' },
+      text('Name on the referral screen', d.label, 'Medical retina rooms (IVI)', undefined, (n, v) => (n.referrals[i].label = v.trim())),
+      text('Referring to (fills {recipient})', d.recipient, 'Dr A Example', 'As it should read in “refer the above patient to …”', (n, v) => (n.referrals[i].recipient = v.trim())),
+      emails('To', d.to, 'One or more addresses (any separator).', (n, v) => (n.referrals[i].to = v)),
+      emails('Cc', d.cc, 'Optional.', (n, v) => (n.referrals[i].cc = v)),
+      text('Subject', d.subject, 'New referral for IVI', 'Keep patient details out of the subject: it is put in the link that opens the new email.', (n, v) => (n.referrals[i].subject = v.trim())),
+      text('Usual treatment (fills {treatment})', d.treatment, 'intravitreal anti-VEGF injections', 'Can be changed for each referral', (n, v) => (n.referrals[i].treatment = v.trim())),
+      field('Email text', body, 'Edit freely. Blank lines start new paragraphs. Pictures go after the text, each under its label.'),
+      field('Before-sending checklist, one per line', checklist, 'Shown next to “Prepare email” as reminders'),
+      field('Notes shown on the referral screen', notes),
+      h('div', { class: 'btn-row' },
+        d.body.trim() ? h('button', { type: 'button', class: 'btn small', onClick: () => { edit((n) => (n.referrals[i].body = '')); show('referrals'); } }, 'Reset email text') : null,
+        h('button', {
+          type: 'button',
+          class: 'btn danger',
+          onClick: () => {
+            if (!confirm(`Remove ${d.label || 'this destination'}?`)) return;
+            edit((n) => n.referrals.splice(i, 1));
+            show('referrals');
+          },
+        }, 'Remove destination'),
+      ),
+    );
+  });
+
+  const how = h('select', null, option('web', 'Outlook on the web (new tab)', s.composeWith === 'web'), option('mailto', 'This computer’s mail app (mailto link)', s.composeWith === 'mailto'));
+  how.addEventListener('change', () => edit((n) => (n.composeWith = how.value === 'mailto' ? 'mailto' : 'web')));
+  const url = h('input', { type: 'text', value: s.composeUrl, placeholder: DEFAULT_COMPOSE_URL });
+  url.addEventListener('change', () => {
+    edit((n) => (n.composeUrl = /^https:\/\//.test(url.value.trim()) ? url.value.trim() : DEFAULT_COMPOSE_URL));
+    show('referrals');
+  });
+
+  return h(
+    'div',
+    null,
+    note('Places you refer to by email. “Prepare email” copies the email (text and pictures) and opens a new email with the addresses and subject filled in: paste into the body, attach any PDFs, and send. Patient details never go in the link.'),
+    h('details', { class: 'tokens' }, h('summary', null, 'Placeholders you can use in the email text'), h('p', null, '{patient} · {dob} · {mrn} · {contact} (phone and address lines) · {phone} · {address} · {indication} (e.g. CRVO in the right eye) · {treatment} · {urgency} · {attachments} (clinic notes, and the other referral if ticked) · {recipient} · {hospital} · {name} (your first name) · {signoff} (your name and provider number, then the hospital) · {date}. Anything left in [square brackets] is highlighted to fill in.')),
+    ...rows,
+    h('div', { class: 'btn-row' },
+      h('button', {
+        type: 'button',
+        class: 'btn',
+        onClick: () => {
+          edit((n) => n.referrals.push(newDestination()));
+          show('referrals');
+        },
+      }, 'Add destination'),
+    ),
+    h('h3', null, 'Opening the new email'),
+    field('Open with', how),
+    field('Outlook on the web compose address', url, 'Change only if your organisation uses a different Outlook address.'),
+  );
+}
+
 // ---------- Sync & backup ----------
 
 function syncTab(ctx: SettingsContext, show: (t?: TabId) => void): HTMLElement {
@@ -385,7 +475,7 @@ function syncTab(ctx: SettingsContext, show: (t?: TabId) => void): HTMLElement {
   return h(
     'div',
     null,
-    note('Only these settings are ever saved or synced: your sign-off, consultants, recipients and phrases. Patient details and letters are never stored.'),
+    note('Only these settings are ever saved or synced: your sign-off, consultants, recipients, phrases and email referral destinations. Patient details, letters and pictures are never stored.'),
     h('h3', null, 'Sync across devices'),
     location.protocol === 'file:' ? note('This is the offline copy, which cannot reach the sync server. Use the GitHub Pages version to sync, or move settings with the file buttons below.') : null,
     syncHost,

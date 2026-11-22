@@ -19,6 +19,8 @@ import { letterheadPage, plainPage } from './printhtml';
 import { CLINICS, DIAGNOSES, DRUGS, EYES, FREQUENCIES, INTERVALS, LETTER_TYPES, SECTIONS, TITLES, VA_OPTIONS, type ClinicId, type LetterType } from './phrases';
 import { effectivePhrases, exportSettings, loadSettings, phrasesFor, pickSettingsText, saveSettings, STORAGE_KEY, SYNC_APP, type Settings } from './settings';
 import { openSettings } from './settings-view';
+import { emptyReferral, type ReferralState } from './referral';
+import { createReferralView, currentDest, type ReferralView } from './referral-view';
 import { pullBeforeStart, pushSoon } from './sync.js';
 
 // Captured before anything is drawn, so "download offline copy" can save a clean page.
@@ -35,7 +37,11 @@ const DEFAULT_SALUTATION: Record<LetterType, string> = {
 };
 const DEFAULT_INTERVAL: Record<LetterType, string> = { review: '6m', discharge: 'dc', referral: 'none', support: 'none' };
 
+type Mode = 'letter' | 'referral';
+
 interface Prefs {
+  /** Which screen was last used: the letter or the email referral. */
+  mode: Mode;
   siteId: string;
   /** Print with the letterhead drawn in (off for pre-printed paper). */
   printLetterhead: boolean;
@@ -48,6 +54,7 @@ function loadPrefs(): Prefs {
   try {
     const p = JSON.parse(store?.getItem(PREFS_KEY) || 'null') as Partial<Prefs> | null;
     return {
+      mode: p?.mode === 'referral' ? 'referral' : 'letter',
       clinic: CLINICS.some((c) => c.id === p?.clinic) ? (p!.clinic as ClinicId) : 'general',
       type: LETTER_TYPES.some((t) => t.id === p?.type) ? (p!.type as LetterType) : 'review',
       consultantId: typeof p?.consultantId === 'string' ? p.consultantId : '',
@@ -55,13 +62,13 @@ function loadPrefs(): Prefs {
       printLetterhead: p?.printLetterhead !== false,
     };
   } catch {
-    return { clinic: 'general', type: 'review', consultantId: '', siteId: '', printLetterhead: true };
+    return { mode: 'letter', clinic: 'general', type: 'review', consultantId: '', siteId: '', printLetterhead: true };
   }
 }
 
 function savePrefs(): void {
   try {
-    store?.setItem(PREFS_KEY, JSON.stringify({ clinic: state.clinic, type: state.type, consultantId: state.consultantId, siteId: state.siteId, printLetterhead } satisfies Prefs));
+    store?.setItem(PREFS_KEY, JSON.stringify({ mode, clinic: state.clinic, type: state.type, consultantId: state.consultantId, siteId: state.siteId, printLetterhead } satisfies Prefs));
   } catch {
     // Not saved: fine.
   }
@@ -96,6 +103,10 @@ let showAllClinics = false;
 /** Letterheads by hospital id, body text already stripped. Kept in this browser only. */
 let templates: TemplateMap = {};
 let printLetterhead = true;
+let mode: Mode = 'letter';
+/** The email referral being prepared. Patient, hospital and date are shared with the letter. */
+let referral: ReferralState;
+let referralView: ReferralView;
 
 const currentTemplate = (): StoredTemplate | null => templates[state.siteId] ?? null;
 const currentSiteName = (): string => settings.sites.find((s) => s.id === state.siteId)?.name || 'this hospital';
@@ -118,6 +129,9 @@ function saveTemplates(): boolean {
 // Pieces of the screen that need updating.
 const app = document.getElementById('app')!;
 let controlsEl: HTMLElement;
+let outputEl: HTMLElement;
+let modeChips: { el: HTMLElement; sync: () => void };
+let newButton: HTMLButtonElement;
 let paper: HTMLElement;
 let statusEl: HTMLElement;
 let overridePanel: HTMLElement;
@@ -140,6 +154,7 @@ function say(message: string, ms = 4000): void {
 }
 
 function updatePreview(): void {
+  if (mode === 'referral') return referralView.update();
   const letter = currentLetter();
   paper.innerHTML = toHtml(letter, { mark: true, inline: false });
   for (const l of phraseLabels) l.el.textContent = fillTokens(l.text, state);
@@ -436,9 +451,14 @@ function buildControls(): HTMLElement {
 
 function rebuild(): void {
   const scroll = window.scrollY;
-  const next = buildControls();
+  const next = mode === 'referral' ? referralView.controls() : buildControls();
   controlsEl.replaceWith(next);
   controlsEl = next;
+  const out = mode === 'referral' ? referralView.output() : letterOutput();
+  outputEl.replaceWith(out);
+  outputEl = out;
+  modeChips.sync();
+  newButton.textContent = mode === 'referral' ? 'New referral' : 'New letter';
   savePrefs();
   updatePreview();
   window.scrollTo(0, scroll);
@@ -487,7 +507,8 @@ document.addEventListener('paste', (e) => {
   // Only when a picture is pasted, and not while Settings is open.
   if (!file || document.querySelector('dialog[open]')) return;
   e.preventDefault();
-  void fillFromScreenshot(file);
+  if (mode === 'referral') referralView.paste(file);
+  else void fillFromScreenshot(file);
 });
 
 // ---------- Output actions ----------
@@ -528,9 +549,11 @@ function doEditBody(): void {
   overrideBox.focus();
 }
 
+/** Clears the patient, the letter and the referral (they share the patient). */
 function doNewLetter(): void {
-  if (!confirm('Clear this letter and start a new one?')) return;
-  state = freshState({ clinic: state.clinic, type: state.type, consultantId: state.consultantId, siteId: state.siteId, printLetterhead });
+  if (!confirm(mode === 'referral' ? 'Clear this referral (and the letter for this patient) and start again?' : 'Clear this letter (and any referral for this patient) and start a new one?')) return;
+  state = freshState({ mode, clinic: state.clinic, type: state.type, consultantId: state.consultantId, siteId: state.siteId, printLetterhead });
+  referral = emptyReferral(currentDest(settings, referral));
   rebuild();
 }
 
@@ -577,16 +600,25 @@ function commitSettings(next: Settings): void {
   for (const id of Object.keys(templates)) if (!settings.sites.some((s) => s.id === id)) delete templates[id];
   if (Object.keys(templates).length !== before) saveTemplates();
   fixSite();
+  const dest = currentDest(settings, referral);
+  if (dest && dest.id !== referral.destId) {
+    referral.destId = dest.id;
+    if (dest.treatment.trim()) referral.treatment = dest.treatment.trim();
+  }
   rebuild();
+}
+
+function showSettings(tab?: Parameters<typeof openSettings>[1]): void {
+  openSettings({ get: () => settings, commit: commitSettings, downloadOffline: doDownloadOffline, templateName: (siteId: string) => templates[siteId]?.name ?? null, loadTemplate, clearTemplate }, tab);
 }
 
 // ---------- Start ----------
 
-function buildApp(): void {
-  controlsEl = buildControls();
+/** The letter's buttons, status line and preview. */
+function letterOutput(): HTMLElement {
   paper = h('div', { class: 'paper', 'aria-label': 'Letter preview' });
-  statusEl = h('div', { class: 'status', role: 'status' });
   overrideBox = h('textarea', { rows: 12, class: 'override-box' });
+  overrideBox.value = state.bodyOverride ?? '';
   overrideBox.addEventListener('input', () => {
     state.bodyOverride = overrideBox.value;
     updatePreview();
@@ -614,19 +646,47 @@ function buildApp(): void {
     h('button', { type: 'button', class: 'btn', onClick: doEditBody }, 'Edit body text'),
     h('label', { class: 'check print-opt', title: 'Untick when printing onto pre-printed letterhead paper' }, printBox, 'Print and PDF include the letterhead'),
   );
+  return h('aside', { class: 'output' }, toolbar, statusEl, overridePanel, paper);
+}
+
+function buildApp(): void {
+  statusEl = h('div', { class: 'status', role: 'status' });
+  referralView = createReferralView({
+    settings: () => settings,
+    letter: () => state,
+    referral: () => referral,
+    say,
+    status: () => statusEl,
+    rebuild,
+    openReferralSettings: () => showSettings('referrals'),
+  });
+  modeChips = chips<Mode>(
+    [
+      { value: 'letter', label: 'Letter', title: 'Clinic letters from tick boxes' },
+      { value: 'referral', label: 'Email referral', title: 'A referral email with images, ready to paste into Outlook' },
+    ],
+    () => mode,
+    (v) => {
+      if (v === mode) return;
+      mode = v;
+      rebuild();
+    },
+    'chips mode',
+  );
+  newButton = h('button', { type: 'button', class: 'btn', onClick: doNewLetter }, 'New letter');
+  controlsEl = h('div');
+  outputEl = h('div');
 
   const header = h(
     'header',
     { class: 'top' },
     h('h1', null, 'Letter Builder', h('span', { class: 'ver' }, ` v${__APP_VERSION__}`)),
-    h('div', { class: 'top-actions' }, h('button', { type: 'button', class: 'btn', onClick: doNewLetter }, 'New letter'), h('button', { type: 'button', class: 'btn', onClick: () => openSettings({ get: () => settings, commit: commitSettings, downloadOffline: doDownloadOffline, templateName: (siteId: string) => templates[siteId]?.name ?? null, loadTemplate, clearTemplate }) }, 'Settings')),
+    modeChips.el,
+    h('div', { class: 'top-actions' }, newButton, h('button', { type: 'button', class: 'btn', onClick: () => showSettings() }, 'Settings')),
   );
 
-  app.replaceChildren(
-    header,
-    h('main', { class: 'cols' }, controlsEl, h('aside', { class: 'output' }, toolbar, statusEl, overridePanel, paper)),
-  );
-  updatePreview();
+  app.replaceChildren(header, h('main', { class: 'cols' }, controlsEl, outputEl));
+  rebuild();
 }
 
 async function start(): Promise<void> {
@@ -676,7 +736,9 @@ async function start(): Promise<void> {
   }
   const prefs = loadPrefs();
   printLetterhead = prefs.printLetterhead;
+  mode = prefs.mode;
   state = freshState(prefs);
+  referral = emptyReferral(settings.referrals[0]);
   if (!settings.consultants.some((c) => c.id === state.consultantId)) state.consultantId = '';
   fixSite();
   buildApp();

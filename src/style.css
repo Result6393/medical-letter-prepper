@@ -254,6 +254,78 @@ textarea:focus {
   padding: 8px 10px;
   font-size: 13px;
 }
+.paste-zone.target {
+  cursor: pointer;
+}
+.paste-zone.target:focus,
+.paste-zone.over {
+  outline: 2px solid var(--accent);
+  border-style: solid;
+  background: var(--bg);
+}
+.paste-zone.target:focus strong::after {
+  content: ' (ready: paste now)';
+  color: var(--accent);
+}
+
+/* ---------- Email referral ---------- */
+.top .chips.mode {
+  margin-right: auto;
+}
+.dest-name {
+  margin: 0;
+  font-weight: 600;
+}
+.thumb {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.thumb img {
+  width: 140px;
+  max-height: 140px;
+  object-fit: contain;
+  background: #000;
+  border-radius: 4px;
+}
+.thumb-side {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.checklist {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.paper.email {
+  font: 11pt/1.4 Aptos, Calibri, Arial, Helvetica, sans-serif;
+}
+.email-head {
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+  font-size: 10pt;
+  color: #333;
+  display: grid;
+  gap: 2px;
+}
+.email-body img {
+  max-width: 100%;
+  height: auto;
+}
+textarea.mono {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
 
 .print-opt {
   font-size: 13px;
