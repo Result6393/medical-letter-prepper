@@ -5,9 +5,11 @@ export interface Consultant {
   id: string;
   /** As written after "Registrar to", e.g. "Dr Jane Smith". */
   name: string;
-  /** Lines under the registrar line, e.g. "Consultant Ophthalmologist, {hospital}". {hospital} becomes the chosen hospital's name. */
-  /** Printed after the name on the registrar line; blank to omit. */
+  /** Printed after the name on the registrar line, for any hospital without its own number in `providers`; blank to omit. */
   provider: string;
+  /** Provider number at each hospital, by Site id. Overrides `provider` for that hospital. */
+  providers: Record<string, string>;
+  /** Lines under the registrar line, e.g. "Consultant Ophthalmologist, {hospital}". {hospital} becomes the chosen hospital's name. */
   titles: string[];
   /** Clinics this consultant works in: listed first when that clinic is chosen. */
   clinics: ClinicId[];
@@ -162,6 +164,9 @@ export function importSettings(text: string): Settings {
             id: str(c.id, `c${i}`),
             name: str(c.name, ''),
             provider: str(c.provider, '').trim(),
+            providers: isObject(c.providers)
+              ? Object.fromEntries(Object.entries(c.providers).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1].trim() !== '').map(([k, v]) => [k, v.trim()]))
+              : {},
             titles: stringList(c.titles),
             clinics: stringList(c.clinics).filter((x): x is ClinicId => clinicIds.has(x)),
           }),
@@ -213,6 +218,11 @@ export function importSettings(text: string): Settings {
     composeWith: data.composeWith === 'mailto' ? 'mailto' : 'web',
     composeUrl: typeof data.composeUrl === 'string' && /^https:\/\//.test(data.composeUrl.trim()) ? data.composeUrl.trim() : d.composeUrl,
   };
+}
+
+/** A consultant's provider number at the given hospital: its own number there, else their default. */
+export function consultantProvider(c: Consultant, siteId: string | undefined): string {
+  return (siteId ? c.providers[siteId]?.trim() : '') || c.provider.trim();
 }
 
 /** Phrase list kept for the clinic: untagged phrases plus ones tagged for it (or everything). */

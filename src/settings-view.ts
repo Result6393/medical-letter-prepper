@@ -96,8 +96,29 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
   const consultantRows = s.consultants.map((c, i) => {
     const name = h('input', { type: 'text', value: c.name, placeholder: 'Dr Jane Example' });
     name.addEventListener('change', () => edit((n) => (n.consultants[i].name = name.value.trim())));
-    const provider = h('input', { type: 'text', value: c.provider });
+    const provider = h('input', { type: 'text', value: c.provider, placeholder: '0000000A' });
     provider.addEventListener('change', () => edit((n) => (n.consultants[i].provider = provider.value.trim())));
+    // One number per hospital; the default covers any hospital left blank.
+    const perSite = s.sites.map((site) => {
+      const input = h('input', { type: 'text', value: c.providers[site.id] ?? '', placeholder: c.provider || '0000000A' });
+      input.addEventListener('change', () =>
+        edit((n) => {
+          const v = input.value.trim();
+          if (v) n.consultants[i].providers[site.id] = v;
+          else delete n.consultants[i].providers[site.id];
+        }),
+      );
+      return field(`At ${site.name || '(unnamed hospital)'}`, input);
+    });
+    const providerBlock = s.sites.length
+      ? h(
+          'div',
+          { class: 'field' },
+          h('span', { class: 'field-label' }, 'Provider number at each hospital'),
+          h('div', { class: 'grid2' }, ...perSite, field('Default (any hospital left blank)', provider)),
+          h('span', { class: 'hint' }, 'Printed after the name, using the number for the hospital chosen for each letter. Leave all blank to omit.'),
+        )
+      : field('Provider number', provider, 'Printed after the name; leave blank to omit. Add hospitals (Settings → Hospitals) to give a number for each.');
     const titles = h('textarea', { rows: 2, placeholder: 'Consultant Ophthalmologist, {hospital}' });
     titles.value = c.titles.join('\n');
     titles.addEventListener('change', () => edit((n) => (n.consultants[i].titles = parseList(titles.value))));
@@ -121,7 +142,7 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
       'div',
       { class: 'card-row' },
       field('Name (as after "Registrar to")', name),
-      field('Provider number', provider, 'Printed after the name; leave blank to omit'),
+      providerBlock,
       field('Lines under the name, one per line', titles, 'Write {hospital} where the hospital name goes: it follows the hospital chosen for each letter'),
       field('Clinics (listed first when that clinic is chosen)', clinics),
       h('button', { type: 'button', class: 'btn danger', onClick: () => { edit((n) => n.consultants.splice(i, 1)); show('you'); } }, 'Remove consultant'),
@@ -142,7 +163,7 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
       type: 'button',
       class: 'btn',
       onClick: () => {
-        edit((n) => n.consultants.push({ id: `c${Date.now().toString(36)}`, name: '', provider: '', titles: [], clinics: [] } satisfies Consultant));
+        edit((n) => n.consultants.push({ id: `c${Date.now().toString(36)}`, name: '', provider: '', providers: {}, titles: [], clinics: [] } satisfies Consultant));
         show('you');
       },
     }, 'Add consultant'),

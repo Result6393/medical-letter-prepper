@@ -1,5 +1,5 @@
 import { INTERVALS, SECTIONS, type ClinicId, type LetterType, type Phrase } from './phrases';
-import { phrasesFor, type Consultant, type Settings, type Site } from './settings';
+import { consultantProvider, phrasesFor, type Consultant, type Settings, type Site } from './settings';
 
 export type Sex = 'm' | 'f' | 'x';
 export type ReferAs = 'title' | 'first' | 'this';
@@ -226,7 +226,7 @@ export function buildSignoff(settings: Settings, consultant: Consultant | undefi
   const [firstProvider = '', ...moreProvider] = (site?.provider ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const out = [[name.trim() || '[Your name]', firstProvider].filter(Boolean).join(', '), ...moreProvider];
   if (consultant) {
-    const who = [consultant.name.trim(), consultant.provider.trim()].filter(Boolean).join(', ');
+    const who = [consultant.name.trim(), consultantProvider(consultant, site?.id)].filter(Boolean).join(', ');
     out.push(`${rolePrefix.trim() || 'Registrar to'} ${who}`.trim());
     out.push(...consultant.titles.map((t) => fillHospital(t, site?.name ?? '')).filter(Boolean));
   }
