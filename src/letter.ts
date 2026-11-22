@@ -200,9 +200,28 @@ export function fillHospital(line: string, hospital: string): string {
     .trim();
 }
 
+function providerLines(site?: Site): string[] {
+  return (site?.provider ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+}
+
+/**
+ * Signing in your own name (no consultant), once your position is set in settings:
+ * name, position line(s), hospital, "Provider number: …", then any further provider lines.
+ */
+export function ownSignoff(settings: Settings, site?: Site): string[] {
+  const hospital = site?.name.trim() ?? '';
+  const position = settings.signer.position.split(/\r?\n/).map((l) => fillHospital(l, hospital)).filter(Boolean);
+  const [firstProvider = '', ...moreProvider] = providerLines(site);
+  const providerLine = !firstProvider || /provider/i.test(firstProvider) ? firstProvider : `Provider number: ${firstProvider}`;
+  // The hospital gets its own line unless a position line already names it.
+  const hospitalLine = hospital && !position.some((l) => l.includes(hospital)) ? hospital : '';
+  return [settings.signer.name.trim() || '[Your name]', ...position, hospitalLine, providerLine, ...moreProvider].filter(Boolean);
+}
+
 /** Sign-off lines. Your provider number is the one set for the chosen hospital. */
 export function buildSignoff(settings: Settings, consultant: Consultant | undefined, site?: Site): string[] {
   const { name, rolePrefix } = settings.signer;
+  if (!consultant && settings.signer.position.trim()) return ownSignoff(settings, site);
   // The provider box can hold several lines: the first follows your name, the rest each get a line of their own.
   const [firstProvider = '', ...moreProvider] = (site?.provider ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const out = [[name.trim() || '[Your name]', firstProvider].filter(Boolean).join(', '), ...moreProvider];

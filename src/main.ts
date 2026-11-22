@@ -442,7 +442,16 @@ function buildControls(): HTMLElement {
     card(
       'Sign-off',
       settings.signer.name ? null : h('p', { class: 'note warn' }, 'Add your name in Settings → You & consultants.'),
-      field('Registrar to', consSel, settings.consultants.length ? undefined : 'Add consultants in Settings'),
+      field(
+        'Registrar to',
+        consSel,
+        [
+          settings.consultants.length ? '' : 'Add consultants in Settings.',
+          settings.signer.position.trim() ? `With (none), you sign as ${settings.signer.position.split('\n')[0]}.` : 'With (none), add your position in Settings → You & consultants to put it under your name.',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      ),
     ),
   );
 

@@ -26,7 +26,8 @@ export interface Settings {
   version: 1;
   /** Hospitals to switch between. Consultants are shared across all of them. */
   sites: Site[];
-  signer: { name: string; rolePrefix: string };
+  /** position: your role when signing in your own name (no consultant), one line each, e.g. "Ophthalmology Registrar". */
+  signer: { name: string; rolePrefix: string; position: string };
   consultants: Consultant[];
   /** Salutation names offered under "To", one per entry, e.g. "Dr Jones". */
   recipients: string[];
@@ -63,7 +64,7 @@ export function defaultSettings(): Settings {
   return {
     version: 1,
     sites: [],
-    signer: { name: '', rolePrefix: 'Registrar to' },
+    signer: { name: '', rolePrefix: 'Registrar to', position: '' },
     consultants: [],
     recipients: [],
     customPhrases: [],
@@ -153,6 +154,7 @@ export function importSettings(text: string): Settings {
     signer: {
       name: str(signer.name, d.signer.name),
       rolePrefix: str(signer.rolePrefix, d.signer.rolePrefix),
+      position: str(signer.position, d.signer.position),
     },
     consultants: Array.isArray(data.consultants)
       ? data.consultants.filter(isObject).map(

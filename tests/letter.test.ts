@@ -138,7 +138,7 @@ describe('letter', () => {
 
   it('builds the sign-off from settings', () => {
     const settings = defaultSettings();
-    settings.signer = { name: 'Dr A Example', rolePrefix: 'Registrar to' };
+    settings.signer = { name: 'Dr A Example', rolePrefix: 'Registrar to', position: '' };
     settings.sites = [{ id: 'a', name: 'Example Hospital', provider: '000000X' }];
     settings.consultants = [{ id: 'c1', name: 'Dr B Sample', provider: '', titles: ['Consultant Ophthalmologist, Example Hospital'], clinics: [] }];
     const l = buildLetter(state({ consultantId: 'c1', siteId: 'a' }), settings, []);
@@ -146,6 +146,21 @@ describe('letter', () => {
     settings.consultants[0].provider = '111111Y';
     expect(buildLetter(state({ consultantId: 'c1', siteId: 'a' }), settings, []).signoff[1]).toBe('Registrar to Dr B Sample, 111111Y');
     expect(buildLetter(state(), defaultSettings(), []).signoff).toEqual(['[Your name]']);
+  });
+
+  it('signs in your own name with your position when no consultant is chosen', () => {
+    const settings = defaultSettings();
+    settings.signer = { name: 'Dr A Example', rolePrefix: 'Registrar to', position: 'Ophthalmology Registrar' };
+    settings.sites = [{ id: 'a', name: 'Example Eye Clinic', provider: '1111111A\nSecond line' }];
+    settings.consultants = [{ id: 'c1', name: 'Dr B Sample', provider: '', titles: [], clinics: [] }];
+    expect(buildLetter(state({ siteId: 'a' }), settings, []).signoff).toEqual(['Dr A Example', 'Ophthalmology Registrar', 'Example Eye Clinic', 'Provider number: 1111111A', 'Second line']);
+    // A consultant still gives the "Registrar to" layout.
+    expect(buildLetter(state({ siteId: 'a', consultantId: 'c1' }), settings, []).signoff).toEqual(['Dr A Example, 1111111A', 'Second line', 'Registrar to Dr B Sample']);
+    // {hospital} in the position replaces the separate hospital line; a labelled number is kept as typed.
+    settings.signer.position = 'Registrar, {hospital}';
+    settings.sites[0].provider = 'Provider no. 1111111A';
+    expect(buildLetter(state({ siteId: 'a' }), settings, []).signoff).toEqual(['Dr A Example', 'Registrar, Example Eye Clinic', 'Provider no. 1111111A']);
+    expect(buildLetter(state(), settings, []).signoff).toEqual(['Dr A Example', 'Registrar']);
   });
 
   it('names the chosen hospital in consultant lines, and copes with none', () => {

@@ -135,6 +135,7 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
     h('h3', null, 'You'),
     text('Your name for the sign-off', s.signer.name, 'e.g. Dr A Example', (n, v) => (n.signer.name = v.trim())),
     text('Role line start', s.signer.rolePrefix, 'e.g. "Registrar to" or "Registrar for"', (n, v) => (n.signer.rolePrefix = v.trim())),
+    positionField(s, edit),
     h('h3', null, 'Consultants'),
     ...consultantRows,
     h('button', {
@@ -145,6 +146,17 @@ function youTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => void): HT
         show('you');
       },
     }, 'Add consultant'),
+  );
+}
+
+function positionField(s: Settings, edit: Edit): HTMLElement {
+  const box = h('textarea', { rows: 2, placeholder: 'Ophthalmology Registrar' });
+  box.value = s.signer.position;
+  box.addEventListener('change', () => edit((n) => (n.signer.position = parseList(box.value).join('\n'))));
+  return field(
+    'Your position, when signing without a consultant',
+    box,
+    'One per line. When no consultant is chosen (and in referral emails) the sign-off reads: your name, position, hospital, then “Provider number: …”. {hospital} works here too. Leave blank to keep the name and provider number on one line.',
   );
 }
 
@@ -432,7 +444,7 @@ function referralsTab(ctx: SettingsContext, edit: Edit, show: (t?: TabId) => voi
     'div',
     null,
     note('Places you refer to by email. “Prepare email” copies the email (text and pictures) and opens a new email with the addresses and subject filled in: paste into the body, attach any PDFs, and send. Patient details never go in the link.'),
-    h('details', { class: 'tokens' }, h('summary', null, 'Placeholders you can use in the email text'), h('p', null, '{patient} · {dob} · {mrn} · {contact} (phone and address lines) · {phone} · {address} · {indication} (e.g. CRVO in the right eye) · {treatment} · {urgency} · {attachments} (clinic notes, and the other referral if ticked) · {recipient} · {hospital} · {name} (your first name) · {signoff} (your name and provider number, then the hospital) · {date}. Anything left in [square brackets] is highlighted to fill in.')),
+    h('details', { class: 'tokens' }, h('summary', null, 'Placeholders you can use in the email text'), h('p', null, '{patient} · {dob} · {mrn} · {contact} (phone and address lines) · {phone} · {address} · {indication} (e.g. CRVO in the right eye) · {treatment} · {urgency} · {attachments} (clinic notes, and the other referral if ticked) · {recipient} · {hospital} · {name} (your first name) · {signoff} (your name, position, hospital and provider number) · {date}. Anything left in [square brackets] is highlighted to fill in.')),
     ...rows,
     h('div', { class: 'btn-row' },
       h('button', {

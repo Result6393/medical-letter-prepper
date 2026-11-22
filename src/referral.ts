@@ -15,9 +15,9 @@
 //   {recipient}   who the destination is addressed to, e.g. "Dr A Example"
 //   {hospital}    the chosen hospital's name
 //   {name}        your first name
-//   {signoff}     your full name and provider number, then the hospital
+//   {signoff}     your name, position, hospital and provider number
 //   {date}        today's date
-import { formatDate, PLACEHOLDER_RE, type PatientState } from './letter';
+import { formatDate, ownSignoff, PLACEHOLDER_RE, type PatientState } from './letter';
 import type { Settings, Site } from './settings';
 
 export interface ReferralDest {
@@ -182,10 +182,14 @@ export function firstName(fullName: string): string {
   return fullName.trim().replace(/^(dr\.?|doctor|prof\.?|professor|a\/prof\.?)\s+/i, '').split(/\s+/)[0] ?? '';
 }
 
-/** Your name with the provider number for this hospital, any further provider lines, then the hospital. */
+/**
+ * With your position set: name, position, hospital, provider number (as on letters without a
+ * consultant). Without it: your name with the provider number, any further provider lines, then the hospital.
+ */
 export function referralSignoff(settings: Settings, site?: Site): string[] {
+  if (settings.signer.position.trim()) return ownSignoff(settings, site);
   const [firstProvider = '', ...more] = (site?.provider ?? '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const name = settings.signer.name.trim() || '[your name]';
+  const name = settings.signer.name.trim() || '[Your name]';
   return [[name, firstProvider].filter(Boolean).join(', '), ...more, site?.name.trim() ?? ''].filter(Boolean);
 }
 
@@ -216,7 +220,7 @@ export function fillReferral(template: string, c: ReferralContext): string {
     attachments: attachmentsText(c.referral.otherReferral),
     recipient: c.dest.recipient.trim() || '[recipient]',
     hospital: c.site?.name.trim() || '[hospital]',
-    name: firstName(c.settings.signer.name) || '[your name]',
+    name: firstName(c.settings.signer.name) || '[Your name]',
     signoff: referralSignoff(c.settings, c.site).join('\n'),
     date: formatDate(c.date, c.settings.dateFormat),
   };

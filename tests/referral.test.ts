@@ -24,7 +24,7 @@ import { defaultSettings, exportSettings, importSettings } from '../src/settings
 
 // Invented people, places and addresses only.
 function context(over: Partial<ReferralContext> = {}): ReferralContext {
-  const settings = { ...defaultSettings(), signer: { name: 'Dr Alex Example', rolePrefix: 'Registrar to' }, sites: [{ id: 's1', name: 'Example Eye Clinic', provider: '1234567A' }] };
+  const settings = { ...defaultSettings(), signer: { name: 'Dr Alex Example', rolePrefix: 'Registrar to', position: '' }, sites: [{ id: 's1', name: 'Example Eye Clinic', provider: '1234567A' }] };
   const dest = { ...newDestination('d1'), label: 'Retina rooms', to: ['rooms@example.org', 'desk@example.org'], recipient: 'Dr B Sample' };
   return {
     patient: { ...emptyPatient(), first: 'Sam', surname: 'Smith', dob: '01/02/1950', mrn: '1234567' },
@@ -88,6 +88,8 @@ describe('referral email text', () => {
     const c = context();
     expect(referralSignoff(c.settings, c.site)).toEqual(['Dr Alex Example, 1234567A', 'Example Eye Clinic']);
     expect(referralSignoff(c.settings, { id: 'x', name: 'Other Clinic', provider: '111A\nExtra line' })).toEqual(['Dr Alex Example, 111A', 'Extra line', 'Other Clinic']);
+    c.settings.signer.position = 'Ophthalmology Registrar';
+    expect(referralSignoff(c.settings, c.site)).toEqual(['Dr Alex Example', 'Ophthalmology Registrar', 'Example Eye Clinic', 'Provider number: 1234567A']);
     expect(firstName('Dr Alex Example')).toBe('Alex');
     expect(firstName('Prof. Jo Sample')).toBe('Jo');
   });
